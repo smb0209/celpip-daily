@@ -147,6 +147,8 @@ button.btn.del[data-armed]{background:var(--bad);color:var(--panel)}
 
 /* ---- base fixes ---- */
 select{max-width:100%}
+html,body{overflow-x:hidden}
+.linkbtn{background:none;border:none;padding:4px 0;color:var(--accent);text-decoration:underline;font:inherit;font-family:var(--f-kr);font-size:13.5px;cursor:pointer}
 [hidden]{display:none!important}
 .xdel{top:auto;bottom:8px}
 /* ---- phone layout: compact header, scrolling task strip, bottom tab bar, sticky task header ---- */
@@ -170,9 +172,8 @@ select{max-width:100%}
   main.wrap{margin-top:10px!important}
   .view{gap:12px}
   #v-today>.row:first-child{flex-direction:column;align-items:stretch;gap:8px}
-  #v-today>.row:first-child>.row{flex-wrap:nowrap}
-  #extraSel{flex:1 1 0;width:0;min-width:0}
-  #extraBtn{flex:none}
+  #v-today>.row:first-child>.row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;width:100%}
+  #extraSel{width:100%;min-width:0}
   .docket{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;gap:8px;padding-bottom:4px;margin-inline:-4px;padding-inline:4px;-webkit-overflow-scrolling:touch}
   .itemwrap{flex:0 0 158px;scroll-snap-align:start}
   .item{min-height:96px}
@@ -198,7 +199,7 @@ select{max-width:100%}
 <body>
 <header class="top"><div class="wrap">
   <div class="toprow">
-    <h1>CELPIP Daily<span class="tgt">target 9·9·9·9</span><span class="meta" style="margin-left:8px">v1.10</span></h1>
+    <h1>CELPIP Daily<span class="tgt">target 9·9·9·9</span><span class="meta" style="margin-left:8px">v1.11</span></h1>
     <div class="row"><select id="who" aria-label="사용자"></select><span class="meta" id="meta"></span></div>
   </div>
   <div class="skills" id="skills"></div>
@@ -503,26 +504,50 @@ function renderListening(key){
 /* Speak the script one line at a time. iOS is unreliable when many utterances are queued at once,
    when cancel() runs right before speak(), or with some downloaded voices, so: chain lines on onend,
    only cancel when something is playing, and fall back to the default voice if nothing starts. */
+/* iOS: play a silent looping <audio> from the tap so the page holds a media audio session,
+   and ask for the "playback" session where Safari supports it, so speech is not muted by the ring/silent switch. */
+let keepAlive=null;
+function silentWavURL(){const n=4000,buf=new ArrayBuffer(44+n),v=new DataView(buf);const w=(o,str)=>[...str].forEach((c,i)=>v.setUint8(o+i,c.charCodeAt(0)));
+  w(0,"RIFF");v.setUint32(4,36+n,true);w(8,"WAVE");w(12,"fmt ");v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);
+  v.setUint32(24,8000,true);v.setUint32(28,8000,true);v.setUint16(32,1,true);v.setUint16(34,8,true);w(36,"data");v.setUint32(40,n,true);
+  for(let i=0;i<n;i++)v.setUint8(44+i,128);return URL.createObjectURL(new Blob([buf],{type:"audio/wav"}));}
+function unlockAudio(){
+  try{if(navigator.audioSession)navigator.audioSession.type="playback";}catch{}
+  try{if(!keepAlive){keepAlive=new Audio(silentWavURL());keepAlive.loop=true;keepAlive.setAttribute("playsinline","");}
+    const pr=keepAlive.play();if(pr&&pr.catch)pr.catch(()=>{});}catch{}
+}
+function releaseAudio(){try{keepAlive?.pause();}catch{}}
+/* Speak the script one line at a time (iOS drops long queues), cancel only when something is playing,
+   skip ahead if a line never reports its end, and fall back to the default voice if nothing starts. */
 function playScript(script,done,opts={}){
   const btn=$("#play")||$("#replay");const st=$("#pstat");const set=t=>{if(st)st.textContent=t;};
   document.getElementById("ttsHelp")?.remove();
   let ss;try{ss=window.speechSynthesis}catch{}
   if(!ss||!window.SpeechSynthesisUtterance){set("이 브라우저는 음성 재생을 지원하지 않습니다.");return;}
+  unlockAudio();
   const cast=opts.plain?{}:castVoices(script);
   try{if(ss.speaking||ss.pending)ss.cancel();}catch{}
   try{ss.resume();}catch{}
   if(btn)btn.disabled=true;
-  let i=0,started=false,finished=false;
-  const fail=why=>{if(finished)return;finished=true;try{ss.cancel()}catch{}if(btn)btn.disabled=false;set(why);showTtsHelp(btn,script,done,opts.plain);};
+  let i=0,started=false,finished=false,lineTimer=null;
+  const row=btn?.closest(".row");
+  if(row&&!row.querySelector(".linkbtn")){const lb=document.createElement("button");lb.className="linkbtn";lb.textContent="소리가 안 들려요";
+    lb.onclick=()=>{fail("재생을 멈췄습니다.");};row.appendChild(lb);}
+  const finish=()=>{finished=true;clearTimeout(lineTimer);releaseAudio();row?.querySelector(".linkbtn")?.remove();};
+  const fail=why=>{if(finished)return;finish();try{ss.cancel()}catch{}if(btn)btn.disabled=false;set(why);showTtsHelp(btn,script,done,opts.plain);};
   const next=()=>{
     if(finished)return;
-    if(i>=script.length){finished=true;set("재생 끝");done();return;}
+    if(i>=script.length){finish();set("재생 끝");done();return;}
     const l=script[i],n=i,c=cast[l.speaker]||{};const u=new SpeechSynthesisUtterance(l.text);
     if(c.voice){u.voice=c.voice;u.lang=c.voice.lang;}else u.lang="en-US";
     u.pitch=c.pitch||1;u.rate=+cfg.rate||1;
+    let lineDone=false;
+    const advance=()=>{if(lineDone||finished)return;lineDone=true;clearTimeout(lineTimer);i++;next();};
     u.onstart=()=>{started=true;set(`재생 중 ${n+1}/${script.length}`);};
-    u.onend=()=>{started=true;i++;next();};
+    u.onend=()=>{started=true;advance();};
     u.onerror=e=>{if(e&&(e.error==="interrupted"||e.error==="canceled"))return;fail(`음성 재생 오류 (${e?.error||"unknown"})`);};
+    const words=(l.text.match(/\S+/g)||[]).length;
+    lineTimer=setTimeout(()=>{if(lineDone||finished)return;try{ss.cancel()}catch{}lineDone=true;i++;setTimeout(next,200);},(5000+words*650)/(+cfg.rate||1));
     ss.speak(u);
   };
   next();
@@ -532,7 +557,7 @@ function showTtsHelp(btn,script,done,wasPlain){
   const row=btn?.closest(".row");if(!row)return;
   const box=document.createElement("div");box.id="ttsHelp";box.className="notice";
   box.innerHTML=`<strong>소리가 안 날 때</strong><ul style="margin:6px 0 8px;padding-left:18px">
-    <li>아이폰 옆면의 무음 스위치를 벨소리 쪽으로 돌리고 볼륨을 올리세요.</li>
+    <li>아이폰 옆면의 무음 스위치(또는 제어 센터의 무음 모드)를 끄고, 재생 중에 볼륨 버튼을 올려 보세요.</li>
     <li>블루투스 이어폰이 다른 기기에 연결돼 있지 않은지 확인하세요.</li>
     <li>설정 탭의 듣기 음성을 모두 "자동"으로 바꿔 보세요. 내려받는 중인 음성은 소리가 안 날 수 있습니다.</li></ul>
     ${wasPlain?"":`<button class="btn" id="ttsPlain">기본 음성으로 다시 재생</button>`}`;
