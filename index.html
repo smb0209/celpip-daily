@@ -144,12 +144,61 @@ input[type=number]{font:inherit;font-size:14px;padding:8px 10px;border-radius:6p
 .xdel[data-armed]{background:var(--bad);color:var(--panel)}
 button.btn.del{border-color:var(--bad);color:var(--bad);background:transparent}
 button.btn.del[data-armed]{background:var(--bad);color:var(--panel)}
+
+/* ---- base fixes ---- */
+select{max-width:100%}
+[hidden]{display:none!important}
+.xdel{top:auto;bottom:8px}
+/* ---- phone layout: compact header, scrolling task strip, bottom tab bar, sticky task header ---- */
+@media (max-width:640px){
+  body{font-size:15.5px;padding-bottom:calc(76px + env(safe-area-inset-bottom,0px))}
+  body::before{display:none}
+  header.top{position:static;padding-block:10px 4px;border-bottom:none}
+  h1{font-size:18px}
+  h1 .tgt{font-size:12.5px;margin-left:4px}
+  .toprow{gap:6px}
+  .toprow .row{width:100%;justify-content:space-between}
+  .skills{grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:8px}
+  .sk{padding:6px 7px;gap:2px}
+  .sk .lab{font-size:9.5px;letter-spacing:.03em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sk .val{font-size:16px}
+  .sk .val small{display:none}
+  .tabs{position:fixed;left:0;right:0;bottom:0;z-index:20;margin:0;gap:0;background:var(--panel);border-top:1px solid var(--line);
+    padding:4px max(8px,env(safe-area-inset-left,0px)) calc(4px + env(safe-area-inset-bottom,0px)) max(8px,env(safe-area-inset-right,0px))}
+  .tabs button{flex:1;min-height:52px;border:none;border-radius:8px;font-size:14px}
+  .tabs button.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+  main.wrap{margin-top:10px!important}
+  .view{gap:12px}
+  #v-today>.row:first-child{flex-direction:column;align-items:stretch;gap:8px}
+  #v-today>.row:first-child>.row{flex-wrap:nowrap}
+  #extraSel{flex:1 1 0;width:0;min-width:0}
+  #extraBtn{flex:none}
+  .docket{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;gap:8px;padding-bottom:4px;margin-inline:-4px;padding-inline:4px;-webkit-overflow-scrolling:touch}
+  .itemwrap{flex:0 0 158px;scroll-snap-align:start}
+  .item{min-height:96px}
+  .pane{padding:14px;gap:14px}
+  .pane>.row:first-child{position:sticky;top:0;z-index:4;background:var(--panel);margin:-14px -14px 0;padding:12px 14px 10px;border-bottom:1px solid var(--line);border-radius:8px 8px 0 0}
+  .pane h3{font-size:16.5px}
+  .timer{font-size:19px}
+  input,select,textarea{font-size:16px!important}
+  textarea{min-height:44vh}
+  button.btn,a.btn,label.btn{min-height:44px}
+  button.btn.sm{min-height:36px}
+  .q label{padding:10px 11px;min-height:44px}
+  .score{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .score div:first-child{grid-column:1/-1}
+  .opts2,.grid2{grid-template-columns:1fr}
+  .wn{padding:10px}
+  .nq{padding:10px}
+  .passage{padding-left:10px}
+  .pane>p,.pane ul{margin:0}
+}
 </style>
 </head>
 <body>
 <header class="top"><div class="wrap">
   <div class="toprow">
-    <h1>CELPIP Daily<span class="tgt">target 9·9·9·9</span><span class="meta" style="margin-left:8px">v1.8</span></h1>
+    <h1>CELPIP Daily<span class="tgt">target 9·9·9·9</span><span class="meta" style="margin-left:8px">v1.9</span></h1>
     <div class="row"><select id="who" aria-label="사용자"></select><span class="meta" id="meta"></span></div>
   </div>
   <div class="skills" id="skills"></div>
@@ -341,7 +390,7 @@ function renderTop(){
   document.querySelectorAll(".tabs button").forEach(b=>b.classList.toggle("on",b.dataset.tab===tab));
   const open=Object.values(data.notes).filter(n=>!n.done).length;$("#noteCount").textContent=open?` ${open}`:"";
 }
-function show(t){tab=t;stopAll();["today","notes","hist","set"].forEach(x=>$("#v-"+x).hidden=x!==t);renderTop();
+function show(t){const changed=tab!==t;tab=t;stopAll();if(changed)window.scrollTo(0,0);["today","notes","hist","set"].forEach(x=>$("#v-"+x).hidden=x!==t);renderTop();
   if(t==="today")renderToday();if(t==="notes")renderNotes();if(t==="hist")renderHist();if(t==="set")renderSettings();}
 function stopAll(){stopTimer();try{speechSynthesis.cancel()}catch{}try{rec?.abort()}catch{}}
 function stopTimer(){if(timerId){clearInterval(timerId);timerId=null;}}
