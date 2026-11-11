@@ -202,7 +202,7 @@ html,body{overflow-x:hidden}
 <body>
 <header class="top"><div class="wrap">
   <div class="toprow">
-    <h1>CELPIP Daily<span class="tgt">target 9·9·9·9</span><span class="meta" style="margin-left:8px">v1.13</span></h1>
+    <h1>CELPIP Daily<span class="tgt">target 9·9·9·9</span><span class="meta" style="margin-left:8px">v1.14</span></h1>
     <div class="row"><select id="who" aria-label="사용자"></select><span class="meta" id="meta"></span></div>
   </div>
   <div class="skills" id="skills"></div>
@@ -270,7 +270,7 @@ function dailyKeys(ds){const n=dayNum(ds);return [`L${n%6+1}`,`R${n%4+1}`,`W${n%
 
 /* ================= settings & profiles ================= */
 const MODELS=[["claude-opus-5-5","Opus 5.5 (최고 품질)"],["claude-sonnet-5-5","Sonnet 5.5 (균형)"],["claude-haiku-5-5","Haiku 5.5 (저렴)"]];
-let cfg=Object.assign({key:"",genModel:"claude-sonnet-5-5",gradeModel:"claude-opus-5-5",dailyOn:true,voiceA:"",voiceB:"",voiceN:"",rate:1,profiles:["나"],profile:"나"},LS.get("cp-cfg",{}));
+let cfg=Object.assign({key:"",genModel:"claude-sonnet-5-5",gradeModel:"claude-opus-5-5",dailyOn:true,voiceA:"",voiceB:"",voiceN:"",rate:1,tts:"device",googleKey:"",openaiKey:"",profiles:["나"],profile:"나"},LS.get("cp-cfg",{}));
 const saveCfg=()=>LS.set("cp-cfg",cfg);
 const dataKey=()=>"cp-data-"+cfg.profile;
 let data=LS.get(dataKey(),{days:{},notes:{}});
@@ -401,7 +401,7 @@ function renderTop(){
 }
 function show(t){const changed=tab!==t;tab=t;stopAll();if(changed)window.scrollTo(0,0);["today","notes","hist","set"].forEach(x=>$("#v-"+x).hidden=x!==t);renderTop();
   if(t==="today")renderToday();if(t==="notes")renderNotes();if(t==="hist")renderHist();if(t==="set")renderSettings();}
-function stopAll(){stopTimer();try{speechSynthesis.cancel()}catch{}try{rec?.abort()}catch{}}
+function stopAll(){stopTimer();cloudToken++;try{player?.pause()}catch{}try{speechSynthesis.cancel()}catch{}try{rec?.abort()}catch{}}
 function stopTimer(){if(timerId){clearInterval(timerId);timerId=null;}}
 
 function statusPill(it){if(it?.result){const l=it.result.level;return `<span class="pill ${l>=9?"g":l>=7?"w":"b"}">Level ${l}</span>`;}if(it?.content)return `<span class="pill w">진행 중</span>`;return `<span class="pill">시작 전</span>`;}
@@ -502,6 +502,7 @@ function renderListening(key){
     <div class="row"><button class="btn" id="sub">채점하기</button></div>`:""}
   ${res?`<details><summary>스크립트 보기</summary><div class="passage" style="margin-top:8px">${c.script.map(l=>`<p><strong>${esc(l.speaker)}:</strong> ${esc(l.text)}</p>`).join("")}</div></details><div class="row"><button class="btn ghost" id="replay">다시 듣기 (채점 후, 횟수 제한 없음)</button><span class="hint" id="pstat"></span></div>`:`<div class="row">${regenHTML()}</div>`}`;
   wireRegen(key);
+  if(!heard&&cfg.tts!=="device")prefetchScript(c.script);
   if(!heard)$("#play").onclick=()=>playScript(c.script,()=>{it.heard=true;saveData();if(cur===key)renderListening(key);});
   else if(!res){wireMC(key);
     $("#replay").onclick=()=>{if((it.replays||0)>=PRACTICE_REPLAYS)return;it.replays=(it.replays||0)+1;saveData();
@@ -528,6 +529,7 @@ function releaseAudio(){try{keepAlive?.pause();}catch{}}
 /* Speak the script one line at a time (iOS drops long queues), cancel only when something is playing,
    skip ahead if a line never reports its end, and fall back to the default voice if nothing starts. */
 function playScript(script,done,opts={}){
+  if(cfg.tts!=="device"&&!opts.plain&&!opts.device)return playCloud(script,done);
   const btn=$("#play")||$("#replay");const st=$("#pstat");const set=t=>{if(st)st.textContent=t;};
   document.getElementById("ttsHelp")?.remove();
   let ss;try{ss=window.speechSynthesis}catch{}
@@ -561,6 +563,72 @@ function playScript(script,done,opts={}){
   next();
   setTimeout(()=>{if(!started&&!finished)fail("소리가 나지 않습니다.");},5000);
 }
+
+/* ================= cloud voices (Google Cloud TTS / OpenAI TTS) =================
+   iOS gives web pages only its built-in voices, so natural voices come from a TTS API.
+   Each line is synthesized once (cached for the session) and played through one <audio>
+   element, which also keeps playing when the phone is on silent. */
+const CLOUD={
+  google:{name:"Google Cloud TTS (Chirp 3 HD)",F:["en-US-Chirp3-HD-Aoede","en-US-Chirp3-HD-Kore","en-US-Chirp3-HD-Leda"],M:["en-US-Chirp3-HD-Puck","en-US-Chirp3-HD-Charon","en-US-Chirp3-HD-Orus"],N:"en-US-Chirp3-HD-Fenrir"},
+  openai:{name:"OpenAI TTS",F:["coral","nova","shimmer"],M:["ash","onyx","echo"],N:"alloy"}
+};
+let player=null,cloudToken=0;const audioCache=new Map();
+function getPlayer(){if(!player){player=new Audio();player.setAttribute("playsinline","");player.preload="auto";}return player;}
+function castCloud(script){const v=CLOUD[cfg.tts],cast={},cnt={f:0,m:0};
+  script.forEach(l=>{if(cast[l.speaker])return;if(l.speaker==="Narrator"){cast[l.speaker]=v.N;return;}const g=l.gender==="m"?"m":"f";const pool=g==="f"?v.F:v.M;cast[l.speaker]=pool[cnt[g]++%pool.length];});return cast;}
+async function synth(text,voice){
+  const prov=cfg.tts;
+  if(prov==="google"){
+    if(!cfg.googleKey)throw {message:"설정 탭에서 Google Cloud API 키를 넣어 주세요."};
+    const r=await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${encodeURIComponent(cfg.googleKey)}`,{method:"POST",headers:{"content-type":"application/json"},
+      body:JSON.stringify({input:{text},voice:{languageCode:"en-US",name:voice},audioConfig:{audioEncoding:"MP3"}})});
+    const j=await r.json().catch(()=>({}));if(!r.ok)throw {message:`Google TTS 오류 ${r.status}: ${j?.error?.message||r.statusText}`};
+    const bin=atob(j.audioContent);const u8=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);
+    addTtsUsage("google",text.length);return URL.createObjectURL(new Blob([u8],{type:"audio/mpeg"}));
+  }
+  if(!cfg.openaiKey)throw {message:"설정 탭에서 OpenAI API 키를 넣어 주세요."};
+  const r=await fetch("https://api.openai.com/v1/audio/speech",{method:"POST",headers:{"content-type":"application/json","authorization":"Bearer "+cfg.openaiKey},
+    body:JSON.stringify({model:"gpt-4o-mini-tts",voice,input:text,response_format:"mp3",instructions:"Speak naturally, like a Canadian adult in an everyday conversation. Clear, relaxed, not theatrical."})});
+  if(!r.ok){const j=await r.json().catch(()=>({}));throw {message:`OpenAI TTS 오류 ${r.status}: ${j?.error?.message||r.statusText}`};}
+  addTtsUsage("openai",text.length);return URL.createObjectURL(await r.blob());
+}
+function getAudio(text,voice){const k=cfg.tts+"|"+voice+"|"+text;if(!audioCache.has(k)){const pr=synth(text,voice);pr.catch(()=>audioCache.delete(k));audioCache.set(k,pr);}return audioCache.get(k);}
+/* synthesize every line ahead of time, 4 at a time */
+function prefetchScript(script){const cast=castCloud(script);const lines=script.map(l=>[l.text,cast[l.speaker]]);let i=0;
+  const worker=async()=>{while(i<lines.length){const [t,v]=lines[i++];try{await getAudio(t,v);}catch{return;}}};
+  return Promise.all([worker(),worker(),worker(),worker()]);}
+function addTtsUsage(prov,chars){const all=LS.get("cp-tts",{});const m=TODAY.slice(0,7);all[m]=all[m]||{google:0,openai:0};all[m][prov]+=chars;LS.set("cp-tts",all);
+  if(prov==="openai"){const u=LS.get("cp-usage",{});u[m]=(u[m]||0)+chars/1000*0.015;LS.set("cp-usage",u);}}
+async function playCloud(script,done){
+  const btn=$("#play")||$("#replay");const st=$("#pstat");const set=t=>{if(st)st.textContent=t;};
+  document.getElementById("ttsHelp")?.remove();
+  const a=getPlayer();const token=++cloudToken;
+  /* unlock the audio element inside the tap; later play() calls on it are then allowed on iOS */
+  try{a.src=silentWavURL();const pr=a.play();if(pr&&pr.catch)pr.catch(()=>{});}catch{}
+  if(btn)btn.disabled=true;
+  const cast=castCloud(script);prefetchScript(script);
+  try{
+    for(let i=0;i<script.length;i++){
+      if(token!==cloudToken)return;
+      set(i===0?"음성 준비 중...":`재생 중 ${i+1}/${script.length}`);
+      const url=await getAudio(script[i].text,cast[script[i].speaker]);
+      if(token!==cloudToken)return;
+      set(`재생 중 ${i+1}/${script.length}`);
+      a.src=url;a.playbackRate=+cfg.rate||1;
+      await new Promise((res,rej)=>{a.onended=res;a.onerror=()=>rej({message:"오디오를 재생하지 못했습니다."});const pr=a.play();if(pr&&pr.catch)pr.catch(rej);});
+      await new Promise(r=>setTimeout(r,script[i+1]&&script[i+1].speaker!==script[i].speaker?350:150));
+    }
+    if(token!==cloudToken)return;
+    set("재생 끝");done();
+  }catch(e){
+    if(token!==cloudToken)return;
+    if(btn)btn.disabled=false;set(e?.name==="NotAllowedError"?"재생이 막혔습니다. 버튼을 다시 눌러 주세요.":(e?.message||"재생 오류"));
+    const row=btn?.closest(".row");if(row){const box=document.createElement("div");box.id="ttsHelp";box.className="notice";
+      box.innerHTML=`<div>${esc(e?.message||"음성을 만들지 못했습니다.")}</div><div class="row" style="margin-top:8px"><button class="btn ghost sm" id="ttsDevice">기기 음성으로 재생</button></div>`;
+      row.after(box);$("#ttsDevice").onclick=()=>playScript(script,done,{device:true});}
+  }
+}
+
 function showTtsHelp(btn,script,done,wasPlain){
   const row=btn?.closest(".row");if(!row)return;
   const box=document.createElement("div");box.id="ttsHelp";box.className="notice";
@@ -700,7 +768,8 @@ function renderHist(){
   const usage=LS.get("cp-usage",{});
   $("#v-hist").innerHTML=`<h2>기록 · ${esc(cfg.profile)}</h2>${allResults().length?`<div class="tblwrap"><table class="mono"><thead><tr><th>날짜</th><th>L</th><th>R</th><th>W</th><th>S</th></tr></thead><tbody>${ds.map(d=>`<tr><td><button class="linkbtn mono" data-go="${d}">${d}</button></td>${["L","R","W","S"].map(k=>`<td>${cell(d,k)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`:`<p class="hint">채점이 끝난 연습이 날짜별로 쌓입니다.</p>`}
   <h2>API 사용 추정 (이 기기)</h2><div class="tblwrap"><table class="mono"><thead><tr><th>월</th><th>추정 비용 (USD)</th></tr></thead><tbody>${Object.entries(usage).sort().reverse().map(([m,v])=>`<tr><td>${m}</td><td>$${v.toFixed(2)}</td></tr>`).join("")||`<tr><td colspan="2">아직 없음</td></tr>`}</tbody></table></div>
-  <p class="hint">정가 기준 추정치입니다. 정확한 금액은 Anthropic Console에서 확인하세요.</p>`;
+  ${(()=>{const t=LS.get("cp-tts",{})[TODAY.slice(0,7)];return t?`<p class="hint">이번 달 음성 생성: Google ${t.google.toLocaleString()}자 (무료 한도 100만 자)${t.openai?`, OpenAI ${t.openai.toLocaleString()}자 (위 비용에 포함)`:""}</p>`:"";})()}
+  <p class="hint">정가 기준 추정치입니다. 정확한 금액은 Anthropic Console, Google Cloud, OpenAI 청구 화면에서 확인하세요.</p>`;
   document.querySelectorAll("[data-go]").forEach(x=>x.onclick=()=>goDate(x.dataset.go));
 }
 
@@ -717,7 +786,13 @@ function renderSettings(){
   <div class="pane"><h3>모델</h3><div class="grid2">
     <label>문제 생성<select id="gm">${mopt(cfg.genModel)}</select></label><label>채점 (Writing, Speaking)<select id="rm">${mopt(cfg.gradeModel)}</select></label></div>
     <p class="hint">채점은 Opus를 권장합니다. 레벨 판단이 가장 일관됩니다.</p></div>
-  <div class="pane"><h3>듣기 음성</h3>${vs.length?`<div class="grid2"><label>여성 화자<select id="va">${vopt(cfg.voiceA,"f")}</select></label><label>남성 화자<select id="vb">${vopt(cfg.voiceB,"m")}</select></label><label>뉴스·발표 (Narrator)<select id="vn">${vopt(cfg.voiceN)}</select></label><label>속도 <span id="rv">${cfg.rate}</span><input type="range" id="rate" min="0.8" max="1.2" step="0.05" value="${cfg.rate}"></label></div><div class="row"><button class="btn ghost" id="vtest">들어보기</button></div>`:`<p class="hint">이 브라우저에서 영어 음성을 찾지 못했습니다.</p>`}
+  <div class="pane"><h3>듣기 음성 엔진</h3>
+    <div class="grid2"><label>엔진<select id="tts"><option value="device" ${cfg.tts==="device"?"selected":""}>기기 음성 (무료)</option><option value="google" ${cfg.tts==="google"?"selected":""}>Google Cloud TTS, Chirp 3 HD (추천)</option><option value="openai" ${cfg.tts==="openai"?"selected":""}>OpenAI TTS</option></select></label>
+    <label ${cfg.tts==="google"?"":"hidden"}>Google Cloud API 키<input id="gkey" type="password" autocomplete="off" value="${esc(cfg.googleKey)}" placeholder="AIza..."></label>
+    <label ${cfg.tts==="openai"?"":"hidden"}>OpenAI API 키<input id="okey" type="password" autocomplete="off" value="${esc(cfg.openaiKey)}" placeholder="sk-..."></label></div>
+    ${cfg.tts==="device"?`<p class="hint">아이폰·아이패드의 웹앱은 기본 음성만 쓸 수 있어 어색하게 들립니다(애플 정책). 자연스러운 음성은 Google이나 OpenAI 엔진을 고르세요.</p>`:`<div class="row"><button class="btn ghost" id="ttest">엔진 들어보기</button><span class="hint" id="pstat"></span></div>
+    <p class="hint">${cfg.tts==="google"?"매월 100만 자까지 무료입니다(Google Cloud 결제 등록 필요). 하루 듣기 1세트는 약 3천 자입니다.":"1분에 약 $0.015입니다. 하루 듣기 1세트는 약 3분입니다."} 오디오 파일로 재생되어 무음 모드에서도 소리가 납니다.</p>`}</div>
+  <div class="pane" ${cfg.tts==="device"?"":"hidden"}><h3>듣기 음성</h3>${vs.length?`<div class="grid2"><label>여성 화자<select id="va">${vopt(cfg.voiceA,"f")}</select></label><label>남성 화자<select id="vb">${vopt(cfg.voiceB,"m")}</select></label><label>뉴스·발표 (Narrator)<select id="vn">${vopt(cfg.voiceN)}</select></label><label>속도 <span id="rv">${cfg.rate}</span><input type="range" id="rate" min="0.8" max="1.2" step="0.05" value="${cfg.rate}"></label></div><div class="row"><button class="btn ghost" id="vtest">들어보기</button></div>`:`<p class="hint">이 브라우저에서 영어 음성을 찾지 못했습니다.</p>`}
     <p class="hint">여성 화자와 남성 화자에는 서로 다른 음성을 고르세요. 같은 성별 화자가 둘이면 음 높이를 바꿔 구분합니다. 이름에 Natural, Premium, Enhanced가 붙은 음성이 가장 자연스럽습니다. 아이폰·아이패드는 설정 > 손쉬운 사용 > 읽기 및 말하기 > 음성 > 영어에서 내려받을 수 있습니다.</p></div>
   <div class="pane"><h3>사용자</h3><p class="hint">사용자마다 기록과 오답노트가 따로 저장됩니다.</p>
     <div class="row"><input id="np" placeholder="새 사용자 이름"><button class="btn ghost" id="addp">추가</button></div>
@@ -729,6 +804,11 @@ function renderSettings(){
     try{await callText("Reply with OK.","claude-haiku-5-5");$("#kmsg").innerHTML=`<p class="hint" style="color:var(--good)">연결됐습니다.</p>`;}catch(e){$("#kmsg").innerHTML=`<div class="err">${esc(errMsg(e))}</div>`;}};
   $("#don").onchange=e=>{cfg.dailyOn=e.target.checked;saveCfg();cur=null;renderTop();};
   $("#gm").onchange=e=>{cfg.genModel=e.target.value;saveCfg();};$("#rm").onchange=e=>{cfg.gradeModel=e.target.value;saveCfg();};
+  $("#tts").onchange=e=>{cfg.tts=e.target.value;saveCfg();renderSettings();};
+  if($("#gkey"))$("#gkey").onchange=e=>{cfg.googleKey=e.target.value.trim();saveCfg();};
+  if($("#okey"))$("#okey").onchange=e=>{cfg.openaiKey=e.target.value.trim();saveCfg();};
+  if($("#ttest"))$("#ttest").onclick=()=>{if($("#gkey"))cfg.googleKey=$("#gkey").value.trim();if($("#okey"))cfg.openaiKey=$("#okey").value.trim();saveCfg();
+    playScript([{speaker:"Anna",gender:"f",text:"Hi Mark, did you get a chance to look at the community centre schedule?"},{speaker:"Mark",gender:"m",text:"I did. The Tuesday class is full, so we might have to go on Thursday instead."}],()=>{const b=$("#ttest");if(b)b.disabled=false;});};
   if(vs.length){["va","vb","vn"].forEach((id,i)=>$("#"+id).onchange=e=>{cfg[["voiceA","voiceB","voiceN"][i]]=e.target.value;saveCfg();});
     $("#rate").oninput=e=>{cfg.rate=+e.target.value;$("#rv").textContent=cfg.rate;saveCfg();};
     $("#vtest").onclick=()=>playScript([{speaker:"Anna",gender:"f",text:"Hi Mark, did you get a chance to look at the community centre schedule?"},{speaker:"Mark",gender:"m",text:"I did. The Tuesday class is full, so we might have to go on Thursday instead."},{speaker:"Narrator",text:"City council approved a new bike lane on 17th Avenue last night."}],()=>{});}
