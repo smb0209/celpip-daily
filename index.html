@@ -138,6 +138,9 @@ caption{text-align:left;font-weight:600;padding-bottom:6px}
 .pane .pane{border:none;padding:0}
 .itemwrap{position:relative;display:flex;min-width:0}.itemwrap .item{flex:1}
 .xdel{position:absolute;top:6px;right:6px;z-index:1;font:inherit;font-family:var(--f-kr);font-size:11.5px;padding:2px 7px;border-radius:4px;border:1px solid var(--bad);background:var(--panel);color:var(--bad);cursor:pointer}
+.datenav{gap:6px;align-items:center}
+.datenav strong{font-family:var(--f-mono);font-size:14px;min-width:96px;text-align:center}
+.mono{font-family:var(--f-mono)}
 .xdel.skip{border-color:var(--line);color:var(--muted)}
 a.btn{display:inline-block;text-decoration:none;font-weight:600;border-radius:6px;padding:9px 16px;background:var(--accent);color:var(--panel);font-family:var(--f-kr);font-size:14px}
 input[type=number]{font:inherit;font-size:14px;padding:8px 10px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
@@ -171,8 +174,8 @@ html,body{overflow-x:hidden}
   .tabs button.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
   main.wrap{margin-top:10px!important}
   .view{gap:12px}
-  #v-today>.row:first-child{flex-direction:column;align-items:stretch;gap:8px}
-  #v-today>.row:first-child>.row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;width:100%}
+  #pickRow{flex-direction:column;align-items:stretch;gap:8px}
+  #pickRow>.row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;width:100%}
   #extraSel{width:100%;min-width:0}
   .docket{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;gap:8px;padding-bottom:4px;margin-inline:-4px;padding-inline:4px;-webkit-overflow-scrolling:touch}
   .itemwrap{flex:0 0 158px;scroll-snap-align:start}
@@ -199,7 +202,7 @@ html,body{overflow-x:hidden}
 <body>
 <header class="top"><div class="wrap">
   <div class="toprow">
-    <h1>CELPIP Daily<span class="tgt">target 9·9·9·9</span><span class="meta" style="margin-left:8px">v1.12</span></h1>
+    <h1>CELPIP Daily<span class="tgt">target 9·9·9·9</span><span class="meta" style="margin-left:8px">v1.13</span></h1>
     <div class="row"><select id="who" aria-label="사용자"></select><span class="meta" id="meta"></span></div>
   </div>
   <div class="skills" id="skills"></div>
@@ -207,7 +210,8 @@ html,body{overflow-x:hidden}
 </div></header>
 <main class="wrap" style="margin-top:18px">
   <section class="view" id="v-today">
-    <div class="row" style="justify-content:space-between"><h2>오늘의 세트</h2>
+    <div class="row datenav"><button class="btn ghost sm" id="dPrev" aria-label="전날">◀</button><strong id="dLabel" class="mono">오늘</strong><button class="btn ghost sm" id="dNext" aria-label="다음날">▶</button><button class="btn ghost sm" id="dToday" hidden>오늘로</button></div>
+    <div class="row" id="pickRow" style="justify-content:space-between"><h2 id="setTitle">오늘의 세트</h2>
       <div class="row"><select id="extraSel" aria-label="추가 연습 파트"></select><button class="btn ghost" id="extraBtn">추가 연습</button></div></div>
     <div class="docket" id="docket"></div>
     <div class="row" id="skipnote"></div>
@@ -258,7 +262,9 @@ const meta=key=>{const k=key[0],p=+key.slice(1).split("-")[0];return {k,p,def:({
 
 /* ================= dates & rotation ================= */
 function localDate(d=new Date()){const z=n=>String(n).padStart(2,"0");return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}`;}
-const TODAY=localDate();
+let TODAY=localDate();
+let viewDate=TODAY; /* the day shown on the Today tab; can be moved back to finish earlier sets */
+function shiftDate(ds,n){const [y,m,d]=ds.split("-").map(Number);return localDate(new Date(y,m-1,d+n));}
 function dayNum(ds){const [y,m,d]=ds.split("-").map(Number);return Math.floor(Date.UTC(y,m-1,d)/864e5);}
 function dailyKeys(ds){const n=dayNum(ds);return [`L${n%6+1}`,`R${n%4+1}`,`W${n%2+1}`,`S${(n*2)%8+1}`,`S${(n*2+1)%8+1}`];}
 
@@ -269,7 +275,7 @@ const saveCfg=()=>LS.set("cp-cfg",cfg);
 const dataKey=()=>"cp-data-"+cfg.profile;
 let data=LS.get(dataKey(),{days:{},notes:{}});
 const saveData=()=>LS.set(dataKey(),data);
-const day=()=>(data.days[TODAY] ||= {date:TODAY,items:{}});
+const day=()=>(data.days[viewDate] ||= {date:viewDate,items:{}});
 
 /* ================= Anthropic API ================= */
 const JSON_RULE="\n\nOutput format: reply with ONLY one valid JSON object matching the shape above. No markdown code fences, no text before or after it.";
@@ -340,12 +346,12 @@ function streak(){let n=0,d=new Date();for(let i=0;i<400;i++){const ds=localDate
 
 /* ================= wrong-answer notebook ================= */
 function addNotes(key,it){
-  const {k,def}=meta(key);const c=it.content;const base={date:TODAY,key,skill:k,part:def.name,title:c.title,done:false};
+  const {k,def}=meta(key);const c=it.content;const base={date:viewDate,key,skill:k,part:def.name,title:c.title,done:false};
   if(k==="L"||k==="R"){
     c.questions.forEach((q,i)=>{const mine=it.answers[i];if(mine===q.answer)return;
-      data.notes[`${TODAY}|${key}|q${i}`]={...base,type:"mc",q:q.q,options:q.options,answer:q.answer,mine:mine??null,evidence:q.evidence,explain:q.explain_ko,traps:q.traps||[]};});
+      data.notes[`${viewDate}|${key}|q${i}`]={...base,type:"mc",q:q.q,options:q.options,answer:q.answer,mine:mine??null,evidence:q.evidence,explain:q.explain_ko,traps:q.traps||[]};});
   }else{
-    (it.result.corrections||[]).forEach((cr,i)=>{data.notes[`${TODAY}|${key}|c${i}`]={...base,type:"fix",original:cr.original,better:cr.better,kind:cr.type,note:cr.note};});
+    (it.result.corrections||[]).forEach((cr,i)=>{data.notes[`${viewDate}|${key}|c${i}`]={...base,type:"fix",original:cr.original,better:cr.better,kind:cr.type,note:cr.note};});
   }
   saveData();
 }
@@ -361,7 +367,7 @@ function noteMC(n,id){
 function noteFix(n){return `<div class="nq"><div><s>${esc(n.original)}</s></div><div><ins>${esc(n.better)}</ins> ${n.kind?`<span class="pill">${esc(n.kind)}</span>`:""}</div><div class="ex">${esc(n.note)}</div></div>`;}
 const cssId=s=>s.replace(/[^a-zA-Z0-9]/g,"_");
 function wrongNoteForItem(key){
-  const ns=Object.entries(data.notes).filter(([id,n])=>id.startsWith(`${TODAY}|${key}|`));
+  const ns=Object.entries(data.notes).filter(([id,n])=>id.startsWith(`${viewDate}|${key}|`));
   const {k}=meta(key);
   if(k==="L"||k==="R"){
     if(!ns.length)return `<div class="wn"><h4>오답노트</h4><p class="hint">모두 맞혔습니다. 아래 전체 해설로 정답 근거를 한 번 더 확인하세요.</p></div>`;
@@ -379,14 +385,16 @@ function wireMore(){document.querySelectorAll("[data-more]").forEach(b=>b.onclic
 
 /* ================= render: shell ================= */
 let tab="today",cur=null,timerId=null;
-function visibleDaily(){if(!cfg.dailyOn)return [];const sk=day().skipped||[];return dailyKeys(TODAY).filter(k=>!sk.includes(k));}
+function visibleDaily(){if(!cfg.dailyOn)return [];const sk=day().skipped||[];return dailyKeys(viewDate).filter(k=>!sk.includes(k));}
 const extraKeys=()=>Object.keys(day().items).filter(k=>k.includes("-"));
 const firstKey=()=>visibleDaily()[0]||extraKeys()[0]||null;
 function renderTop(){
   $("#skills").innerHTML=["L","R","W","S"].map(k=>{const v=skillLevel(k);const pct=v?Math.min(100,v/12*100):0;
     return `<div class="sk"><span class="lab">${SKILL[k]}</span><span class="val">${v?v.toFixed(1):"-"} <small>/ 12</small></span><div class="bar ${v>=9?"ok":""}"><i style="width:${pct}%"></i></div></div>`}).join("");
   const vis=visibleDaily();const done=vis.filter(k=>day().items[k]?.result).length;
-  $("#meta").textContent=`${TODAY} · ${cfg.dailyOn?`오늘 ${done}/${vis.length}`:"기본 세트 꺼짐"} · 연속 ${streak()}일`;
+  $("#meta").textContent=`${TODAY} · ${cfg.dailyOn?`${viewDate===TODAY?"오늘":"이날"} ${done}/${vis.length}`:"기본 세트 꺼짐"} · 연속 ${streak()}일`;
+  const past=viewDate!==TODAY;$("#dLabel").textContent=past?viewDate:"오늘";$("#dNext").disabled=!past;$("#dToday").hidden=!past;
+  $("#setTitle").textContent=past?`${viewDate} 세트`:"오늘의 세트";
   $("#who").innerHTML=cfg.profiles.map(p=>`<option ${p===cfg.profile?"selected":""}>${esc(p)}</option>`).join("");
   document.querySelectorAll(".tabs button").forEach(b=>b.classList.toggle("on",b.dataset.tab===tab));
   const open=Object.values(data.notes).filter(n=>!n.done).length;$("#noteCount").textContent=open?` ${open}`:"";
@@ -687,12 +695,13 @@ function renderNotes(){
 
 /* ================= History tab ================= */
 function renderHist(){
-  const ds=Object.keys(data.days).sort().reverse().slice(0,30);
+  const ds=Object.keys(data.days).filter(d=>Object.values(data.days[d].items||{}).some(x=>x.content||x.result)).sort().reverse().slice(0,30);
   const cell=(d,k)=>{const v=Object.entries(data.days[d].items||{}).filter(([kk,x])=>kk[0]===k&&x.result).map(([,x])=>x.result.level);return v.length?(v.reduce((a,b)=>a+b,0)/v.length).toFixed(1):"·";};
   const usage=LS.get("cp-usage",{});
-  $("#v-hist").innerHTML=`<h2>기록 · ${esc(cfg.profile)}</h2>${allResults().length?`<div class="tblwrap"><table class="mono"><thead><tr><th>날짜</th><th>L</th><th>R</th><th>W</th><th>S</th></tr></thead><tbody>${ds.map(d=>`<tr><td>${d}</td>${["L","R","W","S"].map(k=>`<td>${cell(d,k)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`:`<p class="hint">채점이 끝난 연습이 날짜별로 쌓입니다.</p>`}
+  $("#v-hist").innerHTML=`<h2>기록 · ${esc(cfg.profile)}</h2>${allResults().length?`<div class="tblwrap"><table class="mono"><thead><tr><th>날짜</th><th>L</th><th>R</th><th>W</th><th>S</th></tr></thead><tbody>${ds.map(d=>`<tr><td><button class="linkbtn mono" data-go="${d}">${d}</button></td>${["L","R","W","S"].map(k=>`<td>${cell(d,k)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`:`<p class="hint">채점이 끝난 연습이 날짜별로 쌓입니다.</p>`}
   <h2>API 사용 추정 (이 기기)</h2><div class="tblwrap"><table class="mono"><thead><tr><th>월</th><th>추정 비용 (USD)</th></tr></thead><tbody>${Object.entries(usage).sort().reverse().map(([m,v])=>`<tr><td>${m}</td><td>$${v.toFixed(2)}</td></tr>`).join("")||`<tr><td colspan="2">아직 없음</td></tr>`}</tbody></table></div>
   <p class="hint">정가 기준 추정치입니다. 정확한 금액은 Anthropic Console에서 확인하세요.</p>`;
+  document.querySelectorAll("[data-go]").forEach(x=>x.onclick=()=>goDate(x.dataset.go));
 }
 
 /* ================= Settings tab ================= */
@@ -729,6 +738,7 @@ function renderSettings(){
   $("#imp").onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const j=JSON.parse(await f.text());if(!j.data?.days)throw 0;
     Object.assign(data.days,j.data.days);Object.assign(data.notes,j.data.notes||{});saveData();renderTop();$("#bmsg").innerHTML=`<p class="hint">${esc(cfg.profile)}에 가져왔습니다.</p>`;}catch{$("#bmsg").innerHTML=`<div class="err">이 앱의 백업 파일이 아닙니다.</div>`;}};
 }
+function goDate(ds){if(ds>TODAY)ds=TODAY;viewDate=ds;cur=null;show("today");}
 function switchProfile(p){cfg.profile=p;saveCfg();data=LS.get(dataKey(),{days:{},notes:{}});cur=null;show(tab);}
 
 /* ================= extra practice ================= */
@@ -743,6 +753,11 @@ document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>show(b.datase
 $("#who").onchange=e=>switchProfile(e.target.value);
 try{speechSynthesis.onvoiceschanged=()=>{if(tab==="set")renderSettings();};speechSynthesis.getVoices();}catch{}
 $("#pane").addEventListener("click",e=>{const b=e.target.closest("#delItem");if(b&&cur)armDelete(b,()=>deleteItem(cur));});
+$("#dPrev").onclick=()=>goDate(shiftDate(viewDate,-1));
+$("#dNext").onclick=()=>goDate(shiftDate(viewDate,1));
+$("#dToday").onclick=()=>goDate(TODAY);
+/* a home-screen app can stay open overnight: roll over to the new day when it comes back */
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState!=="visible")return;const t=localDate();if(t!==TODAY){const wasToday=viewDate===TODAY;TODAY=t;if(wasToday)viewDate=t;cur=null;show(tab);}});
 fillExtra();show(cfg.key?"today":"set");
 })();
 </script>
