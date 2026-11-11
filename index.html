@@ -1,0 +1,646 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>CELPIP Daily</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="CELPIP">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#f3f5f7">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+KR:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: exam-booth console. Sticky score strip on top, today's 5-item docket, one work pane below. */
+:root{
+  --bg:#f3f5f7; --panel:#ffffff; --ink:#15212b; --muted:#5d6b76; --line:#d9dfe4;
+  --accent:#1f5fbf; --accent-soft:#e3ecfa; --good:#1d7a4a; --good-soft:#e2f3ea; --warn:#a2610c; --warn-soft:#fbf0dd; --bad:#b3332c; --bad-soft:#f9e3e1;
+  --f-body:"IBM Plex Sans","IBM Plex Sans KR",system-ui,sans-serif;
+  --f-kr:"IBM Plex Sans KR","IBM Plex Sans",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0f1519; --panel:#172027; --ink:#e4eaee; --muted:#93a2ad; --line:#2a3640;
+  --accent:#7aa8f0; --accent-soft:#1b2b44; --good:#5fc48f; --good-soft:#15301f; --warn:#e3a650; --warn-soft:#352612; --bad:#ec7c74; --bad-soft:#3a1a18; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1519; --panel:#172027; --ink:#e4eaee; --muted:#93a2ad; --line:#2a3640;
+  --accent:#7aa8f0; --accent-soft:#1b2b44; --good:#5fc48f; --good-soft:#15301f; --warn:#e3a650; --warn-soft:#352612; --bad:#ec7c74; --bad-soft:#3a1a18; color-scheme:dark}
+*{box-sizing:border-box}
+html{color-scheme:light}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.55;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 48px}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+.wrap{max-width:880px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:14px 12px;border-bottom:1px solid var(--line)}
+.toprow{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+h1{font-size:20px;font-weight:700;margin:0;letter-spacing:-.01em}
+h1 .tgt{font-family:var(--f-mono);font-weight:600;color:var(--accent);margin-left:6px;font-size:15px}
+.meta{font-family:var(--f-mono);font-size:12.5px;color:var(--muted)}
+.skills{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:10px}
+.sk{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:8px 10px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.sk .lab{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.sk .val{font-family:var(--f-mono);font-size:20px;font-weight:600;font-variant-numeric:tabular-nums}
+.sk .val small{font-size:12px;color:var(--muted);font-weight:400}
+.bar{height:5px;background:var(--line);border-radius:3px;position:relative;overflow:hidden}
+.bar i{position:absolute;inset:0 auto 0 0;background:var(--accent);border-radius:3px}
+.bar.ok i{background:var(--good)}
+.bar::after{content:"";position:absolute;top:0;bottom:0;left:75%;width:2px;background:var(--ink);opacity:.5}
+h2{font-size:13px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin:0;font-weight:600}
+.docket{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.item{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:10px 12px;text-align:left;cursor:pointer;color:var(--ink);font:inherit;display:flex;flex-direction:column;gap:3px;min-width:0}
+.item:hover{border-color:var(--accent)}
+.item:focus-visible,button:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.item.on{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.item .k{font-family:var(--f-mono);font-size:12px;color:var(--accent);font-weight:600}
+.item .n{font-size:13.5px;font-weight:500;line-height:1.3}
+.item .s{font-size:12px;color:var(--muted);font-family:var(--f-kr)}
+.pill{display:inline-block;font-family:var(--f-mono);font-size:11.5px;padding:1px 7px;border-radius:999px;background:var(--line);color:var(--ink)}
+.pill.g{background:var(--good-soft);color:var(--good)} .pill.w{background:var(--warn-soft);color:var(--warn)} .pill.b{background:var(--bad-soft);color:var(--bad)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.pane{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:20px;display:flex;flex-direction:column;gap:16px;min-width:0}
+.pane h3{margin:0;font-size:18px;text-wrap:balance}
+.kr{font-family:var(--f-kr)}
+.hint{color:var(--muted);font-size:13.5px;font-family:var(--f-kr)}
+button.btn{font:inherit;font-size:14px;font-weight:600;border-radius:6px;padding:9px 16px;border:1px solid var(--accent);background:var(--accent);color:var(--panel);cursor:pointer;font-family:var(--f-kr)}
+button.btn.ghost{background:transparent;color:var(--accent)}
+button.btn:disabled{opacity:.45;cursor:not-allowed}
+select{font:inherit;font-size:14px;padding:8px;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--ink)}
+.timer{font-family:var(--f-mono);font-size:22px;font-weight:600;font-variant-numeric:tabular-nums}
+.timer.low{color:var(--bad)}
+.passage{border-left:3px solid var(--line);padding-left:14px;display:flex;flex-direction:column;gap:10px;max-width:68ch}
+.passage p{margin:0}
+.tblwrap{overflow-x:auto}
+table{border-collapse:collapse;font-size:13.5px;min-width:100%}
+th,td{border:1px solid var(--line);padding:6px 9px;text-align:left;vertical-align:top}
+th{background:var(--bg);font-weight:600}
+.qs{display:flex;flex-direction:column;gap:14px;counter-reset:q}
+.q{display:flex;flex-direction:column;gap:6px}
+.q .qt{font-weight:500}
+.q label{display:flex;gap:8px;align-items:flex-start;padding:6px 9px;border:1px solid var(--line);border-radius:5px;cursor:pointer}
+.q label input{margin-top:4px}
+.q label.right{border-color:var(--good);background:var(--good-soft)}
+.q label.wrong{border-color:var(--bad);background:var(--bad-soft)}
+.why{font-size:13px;color:var(--muted);font-family:var(--f-kr)}
+textarea{width:100%;min-height:260px;font:inherit;font-size:15px;line-height:1.6;padding:12px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--ink);resize:vertical}
+.wc{font-family:var(--f-mono);font-size:13px;color:var(--muted)}
+.score{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}
+.score div{border:1px solid var(--line);border-radius:6px;padding:8px 10px}
+.score b{font-family:var(--f-mono);font-size:22px;display:block}
+.score span{font-size:12px;color:var(--muted)}
+.fb{display:flex;flex-direction:column;gap:10px;font-family:var(--f-kr)}
+.fb ul{margin:0;padding-left:20px}
+.corr{display:flex;flex-direction:column;gap:8px}
+.corr div{border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:14px}
+.corr s{color:var(--bad)} .corr ins{color:var(--good);text-decoration:none;font-weight:500}
+details{border:1px solid var(--line);border-radius:6px;padding:8px 12px}
+summary{cursor:pointer;font-weight:600;font-family:var(--f-kr)}
+.model{white-space:pre-wrap;max-width:68ch;margin-top:8px}
+.live{min-height:120px;border:1px dashed var(--line);border-radius:6px;padding:10px;white-space:pre-wrap}
+.live em{color:var(--muted)}
+.scene{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px;padding:0;margin:0;list-style:none}
+.scene li{border:1px solid var(--line);border-radius:5px;padding:6px 9px;font-size:14px}
+.opts2{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px}
+.opts2 div{border:1px solid var(--line);border-radius:6px;padding:10px}
+.notice{padding:10px 12px;border-radius:6px;background:var(--warn-soft);color:var(--warn);font-family:var(--f-kr);font-size:14px}
+.err{padding:10px 12px;border-radius:6px;background:var(--bad-soft);color:var(--bad);font-family:var(--f-kr);font-size:14px}
+.hist{overflow-x:auto}
+.hist table{font-family:var(--f-mono);font-size:12.5px}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:sp 1s linear infinite;vertical-align:-2px;margin-right:6px}
+@keyframes sp{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation:none}}
+@media (max-width:520px){.skills{grid-template-columns:repeat(2,minmax(0,1fr))}.pane{padding:14px}}
+
+.tabs{display:flex;gap:4px;margin-top:10px;overflow-x:auto}
+.tabs button{font:inherit;font-family:var(--f-kr);font-size:14px;font-weight:500;padding:7px 14px;border-radius:6px;border:1px solid transparent;background:transparent;color:var(--muted);cursor:pointer;white-space:nowrap}
+.tabs button.on{background:var(--panel);border-color:var(--line);color:var(--ink)}
+#noteCount{font-family:var(--f-mono);color:var(--bad)}
+.view{display:flex;flex-direction:column;gap:16px}
+.wn{border:1px solid var(--bad);border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:12px;background:var(--bad-soft)}
+.wn h4{margin:0;font-size:15px;font-family:var(--f-kr);color:var(--bad)}
+.nq{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border-radius:6px;background:var(--panel);border:1px solid var(--line)}
+.nq .qt{font-weight:600}
+.ans{display:flex;gap:6px;flex-wrap:wrap}
+.ex{font-family:var(--f-kr);font-size:14px}
+.ex strong{margin-right:4px}
+blockquote{margin:0;padding:6px 10px;border-left:3px solid var(--accent);background:var(--accent-soft);font-size:14px;font-style:italic}
+.nq s{color:var(--bad)} .nq ins{color:var(--good);text-decoration:none;font-weight:500}
+.note.done{opacity:.6}
+.note{padding:14px;gap:10px}
+.chk{display:flex;gap:6px;align-items:center;font-family:var(--f-kr);font-size:13.5px;cursor:pointer}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.grid2 label{display:flex;flex-direction:column;gap:4px;font-family:var(--f-kr);font-size:13.5px;color:var(--muted)}
+input[type=password],input:not([type]){font:inherit;font-size:14px;padding:8px 10px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+button.btn.sm,.btn.sm{padding:5px 10px;font-size:13px}
+label.btn{font-weight:600;border-radius:6px;padding:9px 16px;border:1px solid var(--accent);color:var(--accent);cursor:pointer;font-family:var(--f-kr);font-size:14px}
+table.mono{font-family:var(--f-mono);font-size:12.5px}
+caption{text-align:left;font-weight:600;padding-bottom:6px}
+.pane .pane{border:none;padding:0}
+.itemwrap{position:relative;display:flex;min-width:0}.itemwrap .item{flex:1}
+.xdel{position:absolute;top:6px;right:6px;z-index:1;font:inherit;font-family:var(--f-kr);font-size:11.5px;padding:2px 7px;border-radius:4px;border:1px solid var(--bad);background:var(--panel);color:var(--bad);cursor:pointer}
+.xdel.skip{border-color:var(--line);color:var(--muted)}
+a.btn{display:inline-block;text-decoration:none;font-weight:600;border-radius:6px;padding:9px 16px;background:var(--accent);color:var(--panel);font-family:var(--f-kr);font-size:14px}
+input[type=number]{font:inherit;font-size:14px;padding:8px 10px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+.xdel[data-armed]{background:var(--bad);color:var(--panel)}
+button.btn.del{border-color:var(--bad);color:var(--bad);background:transparent}
+button.btn.del[data-armed]{background:var(--bad);color:var(--panel)}
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <div class="toprow">
+    <h1>CELPIP Daily<span class="tgt">target 9·9·9·9</span><span class="meta" style="margin-left:8px">v1.8</span></h1>
+    <div class="row"><select id="who" aria-label="사용자"></select><span class="meta" id="meta"></span></div>
+  </div>
+  <div class="skills" id="skills"></div>
+  <nav class="tabs"><button data-tab="today">오늘</button><button data-tab="notes">오답노트<span id="noteCount"></span></button><button data-tab="hist">기록</button><button data-tab="set">설정</button></nav>
+</div></header>
+<main class="wrap" style="margin-top:18px">
+  <section class="view" id="v-today">
+    <div class="row" style="justify-content:space-between"><h2>오늘의 세트</h2>
+      <div class="row"><select id="extraSel" aria-label="추가 연습 파트"></select><button class="btn ghost" id="extraBtn">추가 연습</button></div></div>
+    <div class="docket" id="docket"></div>
+    <div class="row" id="skipnote"></div>
+    <section class="pane" id="pane"></section>
+  </section>
+  <section class="view" id="v-notes" hidden></section>
+  <section class="view" id="v-hist" hidden></section>
+  <section class="view" id="v-set" hidden></section>
+</main>
+<script>
+(() => {
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const paras = s => String(s||"").split(/\n+/).filter(x=>x.trim()).map(p=>`<p>${esc(p)}</p>`).join("");
+const LS = {get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch{return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){console.warn(e)}}};
+
+/* ================= CELPIP-General structure ================= */
+const L = {
+ 1:{name:"Listening to Problem Solving",n:8,spec:"A conversation between two people (one man, one woman) working out a problem, about 450-550 words, as one continuous dialogue."},
+ 2:{name:"Listening to a Daily Life Conversation",n:5,spec:"An everyday conversation between two people (customer and clerk, neighbours, coworkers), about 300-380 words."},
+ 3:{name:"Listening for Information",n:6,spec:"A conversation in which one person gives another detailed information (e.g. an advisor explaining a program), about 400-480 words."},
+ 4:{name:"Listening to a News Item",n:5,spec:"One reporter delivering a local Canadian news story, about 280-350 words. Use only the Narrator speaker."},
+ 5:{name:"Listening to a Discussion",n:8,spec:"A discussion among three people (e.g. coworkers in a meeting) with differing views, about 500-600 words."},
+ 6:{name:"Listening to Viewpoints",n:6,spec:"One speaker presenting a report on an issue with viewpoints from different sides, about 380-450 words. Use only the Narrator speaker."}
+};
+const R = {
+ 1:{name:"Reading Correspondence",n:11,min:11,spec:"A personal or semi-formal letter/email (about 300 words) in 'passage', followed by 6 multiple-choice questions on it. Then a short reply email in 'passage2' with 5 numbered blanks written as [1]..[5]; questions 7-11 ask which option best fills each blank, based on the first letter."},
+ 2:{name:"Reading to Apply a Diagram",n:8,min:9,spec:"A diagram presented as a table (comparison of options, schedule, price list) in 'table' plus an email in 'passage' (about 200 words) with 5 numbered blanks [1]..[5]. Questions 1-5 fill the blanks using the table; questions 6-8 ask about the email."},
+ 3:{name:"Reading for Information",n:9,min:10,spec:"An informational article of 4 paragraphs labeled A, B, C, D (about 450 words; start each paragraph with 'A. ', 'B. ' etc.). The 9 questions are statements; options are exactly ['A','B','C','D','E: Not given in any paragraph'], the answer is the paragraph that contains the information."},
+ 4:{name:"Reading for Viewpoints",n:10,min:13,spec:"An article presenting a debate with several viewpoints (about 450 words) in 'passage', with 5 questions. Then a reader's comment in 'passage2' (about 150 words) with 5 numbered blanks [1]..[5]; questions 6-10 fill those blanks."}
+};
+const W = {
+ 1:{name:"Writing an Email",min:27,spec:"A realistic situation requiring an email (to a manager, landlord, company, neighbour or friend). Give 'situation' and exactly 3 'bullets' the email must cover. optionA/optionB null."},
+ 2:{name:"Responding to Survey Questions",min:26,spec:"A community or workplace survey with two options. Give 'situation' (who asks and why) and 'prompt', and fill 'optionA' and 'optionB' with one sentence each. bullets: []."}
+};
+const S = {
+ 1:{name:"Giving Advice",prep:30,talk:90,spec:"A friend or family member asks for advice on a common decision. 'prompt' states the request."},
+ 2:{name:"Talking about a Personal Experience",prep:30,talk:60,spec:"Ask the test taker to talk about a specific personal experience, with sub-questions."},
+ 3:{name:"Describing a Scene",prep:30,talk:60,spec:"A busy everyday scene (park, mall, kitchen, office). Instead of a picture, put 9-11 concrete visible details in 'scene', each a short phrase with location (left, foreground, etc.)."},
+ 4:{name:"Making Predictions",prep:30,talk:60,spec:"A busy scene given in 'scene' (9-11 details). The prompt asks what will most probably happen next."},
+ 5:{name:"Comparing and Persuading",prep:60,talk:60,spec:"Two options (two apartments, two vacation packages) with 3-4 concrete features each in optionA/optionB. The test taker has chosen one and must persuade a family member who prefers the other; say in the prompt which one the family member prefers."},
+ 6:{name:"Dealing with a Difficult Situation",prep:60,talk:60,spec:"A dilemma involving two people. optionA and optionB each describe who to talk to and what to say. The test taker chooses one and speaks to that person."},
+ 7:{name:"Expressing Opinions",prep:30,talk:90,spec:"A debatable social or local-policy question; the test taker gives and supports an opinion."},
+ 8:{name:"Describing an Unusual Situation",prep:30,talk:60,spec:"The test taker sees an unusual object and must describe it on the phone to someone. Describe the object in 'scene' as 6-8 detailed features (shape, size, colour, parts)."}
+};
+const SKILL={L:"Listening",R:"Reading",W:"Writing",S:"Speaking"};
+const meta=key=>{const k=key[0],p=+key.slice(1).split("-")[0];return {k,p,def:({L,R,W,S})[k][p]};};
+
+/* ================= dates & rotation ================= */
+function localDate(d=new Date()){const z=n=>String(n).padStart(2,"0");return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}`;}
+const TODAY=localDate();
+function dayNum(ds){const [y,m,d]=ds.split("-").map(Number);return Math.floor(Date.UTC(y,m-1,d)/864e5);}
+function dailyKeys(ds){const n=dayNum(ds);return [`L${n%6+1}`,`R${n%4+1}`,`W${n%2+1}`,`S${(n*2)%8+1}`,`S${(n*2+1)%8+1}`];}
+
+/* ================= settings & profiles ================= */
+const MODELS=[["claude-opus-5-5","Opus 5.5 (최고 품질)"],["claude-sonnet-5-5","Sonnet 5.5 (균형)"],["claude-haiku-5-5","Haiku 5.5 (저렴)"]];
+let cfg=Object.assign({key:"",genModel:"claude-sonnet-5-5",gradeModel:"claude-opus-5-5",dailyOn:true,voiceA:"",voiceB:"",voiceN:"",rate:1,profiles:["나"],profile:"나"},LS.get("cp-cfg",{}));
+const saveCfg=()=>LS.set("cp-cfg",cfg);
+const dataKey=()=>"cp-data-"+cfg.profile;
+let data=LS.get(dataKey(),{days:{},notes:{}});
+const saveData=()=>LS.set(dataKey(),data);
+const day=()=>(data.days[TODAY] ||= {date:TODAY,items:{}});
+
+/* ================= Anthropic API ================= */
+const JSON_RULE="\n\nOutput format: reply with ONLY one valid JSON object matching the shape above. No markdown code fences, no text before or after it.";
+function parseJSON(t){
+  t=String(t||"").trim().replace(/^```(?:json)?\s*/i,"").replace(/\s*```$/,"");
+  try{return JSON.parse(t)}catch{}
+  const a=t.indexOf("{"),b=t.lastIndexOf("}");
+  if(a>=0&&b>a){try{return JSON.parse(t.slice(a,b+1))}catch{}}
+  return null;
+}
+async function callClaude(prompt,{model,max=8000}={}){
+  if(!cfg.key)throw {code:"no_key"};
+  const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{
+    "content-type":"application/json","x-api-key":cfg.key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+    body:JSON.stringify({model,max_tokens:max,messages:[{role:"user",content:prompt+JSON_RULE}]})});
+  const body=await res.json().catch(()=>({}));
+  if(!res.ok)throw {code:"http",status:res.status,message:body?.error?.message||res.statusText};
+  addUsage(model,body.usage);
+  if(body.stop_reason==="max_tokens")throw {message:"응답이 길어서 중간에 잘렸습니다. 다시 눌러 주세요."};
+  const text=(body.content||[]).filter(c=>c.type==="text").map(c=>c.text).join("");
+  const out=parseJSON(text);
+  if(!out||typeof out!=="object")throw {message:"응답 형식이 깨졌습니다. 다시 눌러 주세요."};
+  return out;
+}
+async function callText(prompt,model){
+  const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{
+    "content-type":"application/json","x-api-key":cfg.key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+    body:JSON.stringify({model,max_tokens:1500,messages:[{role:"user",content:prompt}]})});
+  const body=await res.json().catch(()=>({}));
+  if(!res.ok)throw {code:"http",status:res.status,message:body?.error?.message||res.statusText};
+  addUsage(model,body.usage);
+  return (body.content||[]).filter(c=>c.type==="text").map(c=>c.text).join("\n");
+}
+const PRICE={"claude-opus-5-5":[4,20],"claude-sonnet-5-5":[2,10],"claude-haiku-5-5":[.1,.5]};
+function addUsage(model,u){if(!u)return;const p=PRICE[model]||[0,0];const cost=(u.input_tokens*p[0]+u.output_tokens*p[1])/1e6;
+  const all=LS.get("cp-usage",{});const m=TODAY.slice(0,7);all[m]=(all[m]||0)+cost;LS.set("cp-usage",all);}
+function errMsg(e){
+  if(e?.code==="no_key")return "설정 탭에서 API 키를 먼저 입력하세요.";
+  if(e?.code==="http"){if(e.status===401)return "API 키가 올바르지 않습니다. 설정에서 확인하세요.";if(e.status===429)return "요청 한도에 걸렸습니다. 잠시 후 다시 시도하세요.";if(e.status===529||e.status>=500)return "Anthropic 서버가 바쁩니다. 잠시 후 다시 시도하세요.";return `API 오류 ${e.status}: ${e.message}`;}
+  if(e instanceof TypeError)return "네트워크 오류입니다. 인터넷 연결을 확인하세요.";
+  return `문제가 생겼습니다: ${e?.message||e?.code||e}`;
+}
+
+/* ================= prompts ================= */
+const BASE=`You are an experienced CELPIP-General test item writer. Write original practice material that matches the real test format closely. Difficulty: calibrated for test takers aiming at CLB 9-10, with plausible distractors that require inference, paraphrase recognition and attention to detail. Use Canadian everyday settings, spelling and vocabulary. Never use em dashes.`;
+const QSHAPE=`"questions":[{"q":string,"options":[strings],"answer":index of correct option,"evidence":string (the exact English sentence(s) from the script/passage that prove the answer),"explain_ko":string (2-3 Korean sentences: why the answer is right, including any paraphrase the test taker had to recognize),"traps":[one short Korean string per option explaining why that option is wrong or tempting; use "" for the correct option]}]`;
+function genPrompt(key){
+  const {k,p,def}=meta(key);const seed=`Variety seed: ${key}-${TODAY}-${Math.random().toString(36).slice(2,7)}. Choose a fresh topic.`;
+  if(k==="L")return `${BASE}\nTask: Listening Part ${p}, "${def.name}". ${def.spec} Write exactly ${def.n} questions with 4 options each.\n${seed}\nShape: {"title":string,"setting":string (one sentence shown before the audio, like the real test),"script":[{"speaker":"Narrator" or a first name,"gender":"f"|"m","text":string}],${QSHAPE}}`;
+  if(k==="R")return `${BASE}\nTask: Reading Part ${p}, "${def.name}". ${def.spec} Exactly ${def.n} questions in total.\n${seed}\nShape: {"title":string,"instructions":string,"passage":string (paragraphs separated by \\n\\n),"table":{"caption":string,"columns":[strings],"rows":[[strings]]} or null,"passage2":string or null,${QSHAPE}}`;
+  if(k==="W")return `${BASE}\nTask: Writing Task ${p}, "${def.name}" (${def.min} minutes, 150-200 words). ${def.spec}\n${seed}\nShape: {"title":string,"situation":string,"prompt":string,"bullets":[strings],"optionA":string or null,"optionB":string or null}`;
+  return `${BASE}\nTask: Speaking Task ${p}, "${def.name}" (prep ${def.prep}s, speak ${def.talk}s). ${def.spec}\n${seed}\nShape: {"title":string,"prompt":string (exactly what the test taker sees),"scene":[strings] or null,"optionA":string or null,"optionB":string or null}`;
+}
+const RUBRIC={
+ W:`CELPIP Writing is rated on four dimensions, each on CELPIP levels 1-12: Content/Coherence (ideas, organization, support), Vocabulary (range, precision, word choice, collocation), Readability (grammar, sentence variety, cohesive devices, mechanics), Task Fulfillment (all points covered, tone/register, 150-200 words). Calibration: 11-12 near-native, precise and idiomatic, virtually error-free. 9-10 effective and well organized, good range including less common vocabulary, only minor errors that never impede, every point fully addressed with consistent appropriate tone. 7-8 adequate but formulaic, vocabulary sometimes repetitive or imprecise, noticeable errors. 5-6 limited range, frequent errors, uneven coverage. Under 150 words caps Task Fulfillment at 8; under 120 caps it at 6.`,
+ S:`CELPIP Speaking is rated on four dimensions, each on CELPIP levels 1-12: Content/Coherence (ideas, organization, examples, logical flow), Vocabulary (range, precision), Listenability (rhythm, fluency, grammar control, sentence variety; here judged only from the transcript: fillers, false starts, run-ons, grammar), Task Fulfillment (relevance, completeness, tone, use of time). Calibration: 9-10 well organized, detailed and fluent with good range and only minor slips; 7-8 adequate but with hesitation, simpler structures, repetitive vocabulary; 5-6 limited. The transcript comes from speech recognition: do not penalize obvious recognition errors or missing punctuation. You cannot hear pronunciation; say so briefly in summary_ko.`
+};
+function gradePrompt(key,task,answer,extra){
+  const {k,def}=meta(key);
+  return `You are a strict, well-calibrated CELPIP-General rater. ${RUBRIC[k]}\n\nTask (${def.name}):\n${task}\n\nTest taker's response${extra}:\n"""\n${answer}\n"""\n\nRate it. The goal is level 9 in every skill. Feedback is for a Korean speaker: Korean explanations, English examples. Never use em dashes.:\n{"scores":{"content":n,"vocabulary":n,"${k==="W"?"readability":"listenability"}":n,"task":n},"overall":n (integer 1-12 consistent with the four scores),"summary_ko":string (2-3 sentences),"strengths":[2-3 Korean strings],"improvements":[3-4 specific, actionable Korean strings],"corrections":[every meaningful error, up to 10: {"original":exact excerpt,"better":improved English,"type":"grammar"|"vocabulary"|"collocation"|"coherence"|"tone"|"task","note":Korean explanation of the rule, 1-2 sentences}],"to_reach_9":string (Korean; what concretely to change to reach or stay at level 9+),"useful_phrases":[4-6 English phrases useful for this task type],"model_answer":string (English level 10-11 response to the same task${k==="W"?", 170-190 words":`, about ${Math.round(def.talk*2.3)} words, natural spoken style`})}`;
+}
+
+/* ================= levels / stats ================= */
+function mcLevel(p){return p>=.95?11:p>=.88?10:p>=.8?9:p>=.72?8:p>=.62?7:p>=.52?6:p>=.42?5:4;}
+function allResults(){const out=[];Object.values(data.days).forEach(d=>Object.entries(d.items||{}).forEach(([k,it])=>{if(it.result?.level)out.push({date:d.date,key:k,skill:k[0],level:it.result.level,t:it.result.at||0});}));return out.sort((a,b)=>a.t-b.t);}
+function skillLevel(sk){const r=allResults().filter(x=>x.skill===sk).slice(-5);return r.length?r.reduce((a,b)=>a+b.level,0)/r.length:null;}
+function streak(){let n=0,d=new Date();for(let i=0;i<400;i++){const ds=localDate(d);const ok=Object.values(data.days[ds]?.items||{}).some(x=>x.result);if(ok)n++;else if(ds!==TODAY)break;d.setDate(d.getDate()-1);}return n;}
+
+/* ================= wrong-answer notebook ================= */
+function addNotes(key,it){
+  const {k,def}=meta(key);const c=it.content;const base={date:TODAY,key,skill:k,part:def.name,title:c.title,done:false};
+  if(k==="L"||k==="R"){
+    c.questions.forEach((q,i)=>{const mine=it.answers[i];if(mine===q.answer)return;
+      data.notes[`${TODAY}|${key}|q${i}`]={...base,type:"mc",q:q.q,options:q.options,answer:q.answer,mine:mine??null,evidence:q.evidence,explain:q.explain_ko,traps:q.traps||[]};});
+  }else{
+    (it.result.corrections||[]).forEach((cr,i)=>{data.notes[`${TODAY}|${key}|c${i}`]={...base,type:"fix",original:cr.original,better:cr.better,kind:cr.type,note:cr.note};});
+  }
+  saveData();
+}
+function noteMC(n,id){
+  const trap=n.mine!=null?n.traps[n.mine]:"";
+  return `<div class="nq"><div class="qt">${esc(n.q)}</div>
+  <div class="ans"><span class="pill b">내 답: ${n.mine==null?"무응답":esc(n.options[n.mine])}</span><span class="pill g">정답: ${esc(n.options[n.answer])}</span></div>
+  <div class="ex"><strong>해설</strong> ${esc(n.explain)}</div>
+  ${trap?`<div class="ex"><strong>내가 고른 답이 틀린 이유</strong> ${esc(trap)}</div>`:""}
+  ${n.evidence?`<blockquote>${esc(n.evidence)}</blockquote>`:""}
+  ${id?`<div class="more" id="more-${cssId(id)}">${n.more?`<div class="ex">${esc(n.more)}</div>`:""}</div>`:""}</div>`;
+}
+function noteFix(n){return `<div class="nq"><div><s>${esc(n.original)}</s></div><div><ins>${esc(n.better)}</ins> ${n.kind?`<span class="pill">${esc(n.kind)}</span>`:""}</div><div class="ex">${esc(n.note)}</div></div>`;}
+const cssId=s=>s.replace(/[^a-zA-Z0-9]/g,"_");
+function wrongNoteForItem(key){
+  const ns=Object.entries(data.notes).filter(([id,n])=>id.startsWith(`${TODAY}|${key}|`));
+  const {k}=meta(key);
+  if(k==="L"||k==="R"){
+    if(!ns.length)return `<div class="wn"><h4>오답노트</h4><p class="hint">모두 맞혔습니다. 아래 전체 해설로 정답 근거를 한 번 더 확인하세요.</p></div>`;
+    return `<div class="wn"><h4>오답노트 · ${ns.length}문항</h4>${ns.map(([id,n])=>noteMC(n,id)+`<div class="row"><button class="btn ghost sm" data-more="${esc(id)}">더 자세히 설명</button></div>`).join("")}</div>`;
+  }
+  if(!ns.length)return "";
+  return `<div class="wn"><h4>오답노트 · 교정 ${ns.length}개</h4>${ns.map(([id,n])=>noteFix(n)).join("")}</div>`;
+}
+function wireMore(){document.querySelectorAll("[data-more]").forEach(b=>b.onclick=async()=>{
+  const id=b.dataset.more,n=data.notes[id];const box=$("#more-"+cssId(id));b.disabled=true;box.innerHTML=`<p class="hint"><span class="spin"></span>설명을 만드는 중</p>`;
+  try{const t=await callText(`A Korean learner preparing for CELPIP (target level 9) got this question wrong.\nQuestion: ${n.q}\nOptions: ${n.options.map((o,i)=>`(${i+1}) ${o}`).join(" ")}\nCorrect: (${n.answer+1}). Learner chose: ${n.mine==null?"nothing":`(${n.mine+1})`}.\nEvidence: ${n.evidence}\n\nIn Korean, explain in under 200 words: the exact paraphrase or inference the question tested, why the learner's choice was tempting but wrong, and one listening/reading strategy to avoid this trap next time. Plain text, no markdown headings, no em dashes.`,cfg.genModel);
+    n.more=t;saveData();box.innerHTML=`<div class="ex">${esc(t)}</div>`;b.remove();
+  }catch(e){box.innerHTML=`<div class="err">${esc(errMsg(e))}</div>`;b.disabled=false;}
+});}
+
+/* ================= render: shell ================= */
+let tab="today",cur=null,timerId=null;
+function visibleDaily(){if(!cfg.dailyOn)return [];const sk=day().skipped||[];return dailyKeys(TODAY).filter(k=>!sk.includes(k));}
+const extraKeys=()=>Object.keys(day().items).filter(k=>k.includes("-"));
+const firstKey=()=>visibleDaily()[0]||extraKeys()[0]||null;
+function renderTop(){
+  $("#skills").innerHTML=["L","R","W","S"].map(k=>{const v=skillLevel(k);const pct=v?Math.min(100,v/12*100):0;
+    return `<div class="sk"><span class="lab">${SKILL[k]}</span><span class="val">${v?v.toFixed(1):"-"} <small>/ 12</small></span><div class="bar ${v>=9?"ok":""}"><i style="width:${pct}%"></i></div></div>`}).join("");
+  const vis=visibleDaily();const done=vis.filter(k=>day().items[k]?.result).length;
+  $("#meta").textContent=`${TODAY} · ${cfg.dailyOn?`오늘 ${done}/${vis.length}`:"기본 세트 꺼짐"} · 연속 ${streak()}일`;
+  $("#who").innerHTML=cfg.profiles.map(p=>`<option ${p===cfg.profile?"selected":""}>${esc(p)}</option>`).join("");
+  document.querySelectorAll(".tabs button").forEach(b=>b.classList.toggle("on",b.dataset.tab===tab));
+  const open=Object.values(data.notes).filter(n=>!n.done).length;$("#noteCount").textContent=open?` ${open}`:"";
+}
+function show(t){tab=t;stopAll();["today","notes","hist","set"].forEach(x=>$("#v-"+x).hidden=x!==t);renderTop();
+  if(t==="today")renderToday();if(t==="notes")renderNotes();if(t==="hist")renderHist();if(t==="set")renderSettings();}
+function stopAll(){stopTimer();try{speechSynthesis.cancel()}catch{}try{rec?.abort()}catch{}}
+function stopTimer(){if(timerId){clearInterval(timerId);timerId=null;}}
+
+function statusPill(it){if(it?.result){const l=it.result.level;return `<span class="pill ${l>=9?"g":l>=7?"w":"b"}">Level ${l}</span>`;}if(it?.content)return `<span class="pill w">진행 중</span>`;return `<span class="pill">시작 전</span>`;}
+function renderToday(){
+  if(!cfg.key){$("#docket").innerHTML="";$("#pane").innerHTML=`<h3>시작하려면 API 키가 필요합니다</h3><p class="hint">설정 탭에서 Anthropic API 키를 입력하세요. 키는 이 기기의 브라우저에만 저장됩니다.</p><div class="row"><button class="btn" id="toSet">설정으로 가기</button></div>`;$("#toSet").onclick=()=>show("set");return;}
+  if(cur&&!visibleDaily().includes(cur)&&!extraKeys().includes(cur))cur=null;
+  const k=cur||firstKey();
+  if(!k){cur=null;renderDocket();$("#pane").innerHTML=`<h3>오늘 풀 문제가 없습니다</h3><p class="hint">${cfg.dailyOn?"오늘 세트를 모두 건너뛰었습니다. 아래에서 되돌리거나":"기본 세트가 꺼져 있습니다."} 위의 "추가 연습"에서 파트를 골라 시작하세요.</p>`;return;}
+  renderDocket(); open(k,false);
+}
+function skipItem(key){day().skipped=[...new Set([...(day().skipped||[]),key])];saveData();if(cur===key){stopAll();cur=null;}renderTop();renderToday();}
+function renderDocket(){
+  const keys=[...visibleDaily(),...extraKeys()];
+  $("#docket").innerHTML=keys.map(k=>{const m=meta(k);return `<div class="itemwrap">${k.includes("-")?`<button class="xdel" data-x="${k}" aria-label="이 추가 문제 삭제">삭제</button>`:`<button class="xdel skip" data-skip="${k}" aria-label="오늘 이 항목 건너뛰기">건너뛰기</button>`}<button class="item ${cur===k?"on":""}" data-k="${k}"><span class="k">${SKILL[m.k]} ${m.k==="W"||m.k==="S"?"Task":"Part"} ${m.p}${k.includes("-")?" · 추가":""}</span><span class="n">${esc(m.def.name)}</span><span class="s">${statusPill(day().items[k])}</span></button></div>`}).join("");
+  $("#docket").querySelectorAll("[data-x]").forEach(b=>b.onclick=e=>{e.stopPropagation();armDelete(b,()=>deleteItem(b.dataset.x));});
+  $("#docket").querySelectorAll("[data-skip]").forEach(b=>b.onclick=e=>{e.stopPropagation();skipItem(b.dataset.skip);});
+  const sk=cfg.dailyOn?(day().skipped||[]):[];
+  $("#skipnote").innerHTML=sk.length?`<button class="btn ghost sm" id="unskip">건너뛴 ${sk.length}개 되돌리기</button>`:"";
+  if(sk.length)$("#unskip").onclick=()=>{day().skipped=[];saveData();renderTop();renderToday();};
+  $("#docket").querySelectorAll(".item").forEach(b=>b.onclick=()=>open(b.dataset.k));
+}
+function head(key){const {k,p,def}=meta(key);return `<div class="row" style="justify-content:space-between"><div><div class="meta">${SKILL[k]} ${k==="W"||k==="S"?"Task":"Part"} ${p}</div><h3>${esc(def.name)}</h3></div><div class="row"><div class="row" id="hdrRight"></div>${key.includes("-")?`<button class="btn ghost sm del" id="delItem">삭제</button>`:""}</div></div>`;}
+/* two-step delete: first click arms, second click within 4s deletes */
+function armDelete(btn,fn){if(btn.dataset.armed){fn();return;}btn.dataset.armed="1";const t=btn.textContent;btn.textContent="한 번 더 누르면 삭제";
+  setTimeout(()=>{if(btn.isConnected){delete btn.dataset.armed;btn.textContent=t;}},4000);}
+function deleteItem(key){if(cur===key)stopAll();delete day().items[key];saveData();if(cur===key)cur=null;renderTop();renderToday();}
+function open(key,scroll=true){
+  stopAll();cur=key;renderDocket();const it=day().items[key];
+  if(it?.source==="official")renderOfficial(key);else if(!it?.content)renderStart(key);else({L:renderListening,R:renderReading,W:renderWriting,S:renderSpeaking})[key[0]](key);
+  wireMore();if(scroll)$("#pane").scrollIntoView({behavior:"smooth",block:"start"});
+}
+function renderStart(key,err){
+  const {k,def}=meta(key);
+  const info={L:`실제 시험은 음성을 1회만 들려주고 다시 듣기가 없습니다. 이 앱에서는 연습용으로 다시 듣기를 3회까지 허용합니다. 다 들은 뒤 ${def.n}문항을 풉니다.`,R:`제한 시간 ${def.min}분, ${def.n}문항.`,W:`제한 시간 ${def.min}분, 150~200단어. 제출하면 CELPIP 4개 영역으로 채점합니다.`,S:`준비 ${def.prep}초, 말하기 ${def.talk}초. 말한 내용을 받아쓰기로 기록해 채점합니다.`}[k];
+  $("#pane").innerHTML=`${head(key)}<p class="hint">${info}</p>${err?`<div class="err">${esc(err)}</div>`:""}<div class="row"><button class="btn" id="genBtn">문제 만들기</button></div>`;
+  $("#genBtn").onclick=()=>generate(key);
+}
+async function generate(key){
+  $("#pane").innerHTML=`${head(key)}<p class="hint"><span class="spin"></span>실전 형식 문제를 만드는 중입니다. 보통 20초~1분 걸립니다.</p>`;
+  try{const content=await callClaude(genPrompt(key),{model:cfg.genModel,max:12000});
+    if((key[0]==="L"||key[0]==="R")&&!Array.isArray(content.questions))throw {message:"문항이 비어 있습니다. 다시 시도하세요."};
+    day().items[key]={content,answers:{},created:Date.now()};saveData();if(cur===key)open(key,false);
+  }catch(e){if(cur===key)renderStart(key,errMsg(e));}
+}
+function regenHTML(){return `<button class="btn ghost" id="regen">새 문제로 바꾸기</button>`;}
+function wireRegen(key){const b=$("#regen");if(b)b.onclick=()=>{delete day().items[key];saveData();renderTop();open(key,false);};}
+
+/* ================= MC ================= */
+function mcHTML(key,qs,result){
+  const ans=day().items[key].answers||{};
+  return `<div class="qs">${qs.map((q,i)=>`<div class="q"><div class="qt">${i+1}. ${esc(q.q)}</div>${q.options.map((o,j)=>{
+    let cls="";if(result){if(j===q.answer)cls="right";else if(ans[i]===j)cls="wrong";}
+    return `<label class="${cls}"><input type="radio" name="q${i}" value="${j}" ${ans[i]===j?"checked":""} ${result?"disabled":""}><span>${esc(o)}</span></label>`}).join("")}
+    ${result?`<div class="why">${esc(q.explain_ko||"")}</div>`:""}</div>`).join("")}</div>`;
+}
+function wireMC(key){$("#pane").querySelectorAll(".qs input").forEach(r=>r.onchange=()=>{day().items[key].answers[+r.name.slice(1)]=+r.value;saveData();});}
+function submitMC(key){
+  const it=day().items[key],qs=it.content.questions;const correct=qs.filter((q,i)=>it.answers[i]===q.answer).length;
+  it.result={correct,total:qs.length,level:mcLevel(correct/qs.length),at:Date.now(),replays:it.replays||0};addNotes(key,it);saveData();renderTop();open(key,false);
+  $("#pane").scrollIntoView({behavior:"smooth",block:"start"});
+}
+function mcResult(key,r){return `<div class="score"><div><b>${r.correct}/${r.total}</b><span>정답</span></div><div><b>${r.level}</b><span>추정 레벨 (정답률 기준)</span></div></div>${wrongNoteForItem(key)}<p class="hint">레벨은 공식 환산표가 아닌 정답률 추정입니다. 9를 안정적으로 받으려면 각 파트 정답률 80% 이상을 목표로 하세요.</p>`;}
+
+/* ================= Listening ================= */
+function enVoices(){try{return speechSynthesis.getVoices().filter(v=>/^en/i.test(v.lang))}catch{return []}}
+function rankVoice(v){return (/premium/i.test(v.name)?5:0)+(/natural|neural|online|enhanced/i.test(v.name)?4:0)+(/google/i.test(v.name)?2:0)+(/en-CA|en-US/i.test(v.lang)?1:0);}
+/* guess a voice's gender from its name (Apple, Google, Microsoft voices) */
+const F_NAMES=/\b(female|woman|samantha|ava|allison|susan|zoe|zoey|victoria|karen|moira|tessa|fiona|veena|serena|kate|nicky|joelle|noelle|catherine|martha|kathy|princess|shelley|sandy|flo|grandma|jenny|aria|michelle|sonia|libby|natasha|clara|emma|ana|zira|hazel|heera|linda|amy|joanna|kendra|kimberly|salli|ivy|ruth|olivia|nicole|sara|sarah|jane|nancy|elizabeth|ashley|cora|monica|aditi|isha)\b/i;
+const M_NAMES=/\b(male|man|alex|daniel|tom|fred|aaron|arthur|evan|nathan|rishi|oliver|gordon|lee|reed|rocko|eddy|ralph|albert|junior|grandpa|guy|ryan|christopher|eric|roger|steffan|brian|andrew|liam|william|david|mark|george|thomas|matthew|joey|justin|kevin|russell|james|jason|tony|davis|brandon|jacob|connor|mitchell|prabhat|ravi)\b/i;
+function voiceGender(v){const n=v.name.replace(/female/i," female ");if(/\bfemale\b/i.test(n))return "f";if(F_NAMES.test(n))return "f";if(M_NAMES.test(n))return "m";return "";}
+function pickVoices(){const vs=enVoices().sort((a,b)=>rankVoice(b)-rankVoice(a));const by=n=>vs.find(v=>v.name===n);
+  let F=vs.filter(v=>voiceGender(v)==="f"),M=vs.filter(v=>voiceGender(v)==="m");
+  const fA=by(cfg.voiceA),mB=by(cfg.voiceB);if(fA)F=[fA,...F.filter(v=>v!==fA)];if(mB)M=[mB,...M.filter(v=>v!==mB)];
+  return {F,M,N:by(cfg.voiceN)||M[1]||F[1]||vs[0],list:vs};}
+/* one voice per speaker: women from the female list, men from the male list; pitch separates anyone who has to share */
+function castVoices(script){
+  const pv=pickVoices(),cast={},used=new Map(),cnt={f:0,m:0};
+  script.forEach(l=>{if(cast[l.speaker])return;
+    if(l.speaker==="Narrator"){cast[l.speaker]={voice:pv.N,pitch:1};return;}
+    const g=l.gender==="m"?"m":"f";const pool=g==="f"?pv.F:pv.M;let voice,pitch=1;
+    if(pool.length){voice=pool[cnt[g]%pool.length];}
+    else{const other=g==="f"?pv.M:pv.F;voice=other[0]||pv.list[0];pitch=g==="m"?0.75:1.3;}
+    cnt[g]++;
+    const n=used.get(voice)||0;if(n>0)pitch*=n%2?0.85:1.15;used.set(voice,n+1);
+    cast[l.speaker]={voice,pitch};});
+  return cast;}
+/* practice replays; the real CELPIP plays each Listening clip once with no replay button */
+const PRACTICE_REPLAYS=3;
+const EXAM_RULE="실제 시험: 음성 1회만 재생, 다시 듣기 없음";
+function renderListening(key){
+  const it=day().items[key],c=it.content,res=it.result,heard=it.heard||res;const used=it.replays||0,left=Math.max(0,PRACTICE_REPLAYS-used);
+  $("#pane").innerHTML=`${head(key)}<div class="row"><span class="pill w">${EXAM_RULE}</span><span class="pill">연습: 다시 듣기 ${PRACTICE_REPLAYS}회까지</span></div>
+  <p><strong>${esc(c.title)}</strong></p><p class="hint">${esc(c.setting)}</p>
+  ${heard?"":`<div class="row"><button class="btn" id="play">음성 재생</button><span class="hint" id="pstat">재생이 끝나면 문제가 열립니다. 실전처럼 한 번에 듣는 연습을 먼저 해 보세요.</span></div>`}
+  ${res?mcResult(key,res)+(res.replays?`<p class="hint">이 연습에서 다시 듣기를 ${res.replays}회 썼습니다. 실제 시험이라면 점수가 이보다 낮을 수 있습니다.</p>`:`<p class="hint">다시 듣기 없이 풀었습니다. 실제 시험과 같은 조건입니다.</p>`):""}
+  ${heard?(res?`<details><summary>전체 문항과 해설</summary>${mcHTML(key,c.questions,res)}</details>`:mcHTML(key,c.questions,null)):""}
+  ${heard&&!res?`<div class="row"><button class="btn ghost" id="replay" ${left?"":"disabled"}>다시 듣기 (${left}회 남음)</button><span class="hint" id="pstat">${left?"실제 시험에서는 다시 들을 수 없습니다.":"다시 듣기를 모두 썼습니다."}</span></div>
+    <div class="row"><button class="btn" id="sub">채점하기</button></div>`:""}
+  ${res?`<details><summary>스크립트 보기</summary><div class="passage" style="margin-top:8px">${c.script.map(l=>`<p><strong>${esc(l.speaker)}:</strong> ${esc(l.text)}</p>`).join("")}</div></details><div class="row"><button class="btn ghost" id="replay">다시 듣기 (채점 후, 횟수 제한 없음)</button><span class="hint" id="pstat"></span></div>`:`<div class="row">${regenHTML()}</div>`}`;
+  wireRegen(key);
+  if(!heard)$("#play").onclick=()=>playScript(c.script,()=>{it.heard=true;saveData();if(cur===key)renderListening(key);});
+  else if(!res){wireMC(key);
+    $("#replay").onclick=()=>{if((it.replays||0)>=PRACTICE_REPLAYS)return;it.replays=(it.replays||0)+1;saveData();
+      const n=Math.max(0,PRACTICE_REPLAYS-it.replays);playScript(c.script,()=>{const b=$("#replay");if(b&&cur===key){b.textContent=`다시 듣기 (${n}회 남음)`;b.disabled=!n;}});};
+    $("#sub").onclick=()=>submitMC(key);}
+  if(res)$("#replay").onclick=()=>playScript(c.script,()=>{const b=$("#replay");if(b)b.disabled=false;});
+}
+function playScript(script,done){
+  const btn=$("#play")||$("#replay");if(btn)btn.disabled=true;const st=$("#pstat");const set=t=>{if(st)st.textContent=t;};
+  let ss;try{ss=window.speechSynthesis}catch{}
+  if(!ss){set("이 브라우저는 음성 재생을 지원하지 않습니다. 스크립트를 읽고 풀어 주세요.");done();return;}
+  const cast=castVoices(script);
+  ss.cancel();
+  script.forEach((l,i)=>{const u=new SpeechSynthesisUtterance(l.text);const c=cast[l.speaker]||{};u.lang=c.voice?.lang||"en-CA";if(c.voice)u.voice=c.voice;u.pitch=c.pitch||1;u.rate=+cfg.rate||1;
+    u.onstart=()=>set(`재생 중 ${i+1}/${script.length}`);if(i===script.length-1){u.onend=()=>{set("재생 끝");done();};u.onerror=()=>done();}ss.speak(u);});
+}
+
+/* ================= Reading ================= */
+function countdown(sec,el,onEnd,key){
+  const it=day().items[key];if(!it.startedAt){it.startedAt=Date.now();saveData();}
+  const tick=()=>{const left=Math.max(0,sec-Math.floor((Date.now()-it.startedAt)/1000));el.textContent=`${Math.floor(left/60)}:${String(left%60).padStart(2,"0")}`;el.classList.toggle("low",left<60);if(left===0){stopTimer();onEnd&&onEnd();}};
+  tick();timerId=setInterval(tick,1000);
+}
+function tableHTML(t){if(!t?.columns)return "";return `<div class="tblwrap"><table>${t.caption?`<caption>${esc(t.caption)}</caption>`:""}<thead><tr>${t.columns.map(c=>`<th>${esc(c)}</th>`).join("")}</tr></thead><tbody>${(t.rows||[]).map(r=>`<tr>${r.map(x=>`<td>${esc(x)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;}
+function renderReading(key){
+  const it=day().items[key],c=it.content,res=it.result,{def}=meta(key);
+  $("#pane").innerHTML=`${head(key)}${res?mcResult(key,res):""}<p class="hint">${esc(c.instructions||"")}</p><p><strong>${esc(c.title)}</strong></p>
+  ${tableHTML(c.table)}<div class="passage">${paras(c.passage)}</div>${c.passage2?`<div class="passage">${paras(c.passage2)}</div>`:""}
+  ${mcHTML(key,c.questions,res)}${res?"":`<div class="row"><button class="btn" id="sub">채점하기</button>${regenHTML()}</div>`}`;
+  if(!res){$("#hdrRight").innerHTML=`<span class="timer" id="tm"></span>`;countdown(def.min*60,$("#tm"),null,key);wireMC(key);$("#sub").onclick=()=>submitMC(key);wireRegen(key);}
+}
+
+/* ================= Writing ================= */
+const wc=s=>(s.trim().match(/[A-Za-z0-9'’-]+/g)||[]).length;
+function taskText(c){return [c.situation,c.prompt,...(c.bullets||[]).map(b=>"- "+b),c.optionA?"Option A: "+c.optionA:"",c.optionB?"Option B: "+c.optionB:"",c.scene?.length?"Details: "+c.scene.join("; "):""].filter(Boolean).join("\n");}
+function promptBlock(c){return `<p><strong>${esc(c.title)}</strong></p>${c.situation?`<p>${esc(c.situation)}</p>`:""}<p>${esc(c.prompt)}</p>
+  ${c.bullets?.length?`<ul>${c.bullets.map(b=>`<li>${esc(b)}</li>`).join("")}</ul>`:""}
+  ${c.scene?.length?`<ul class="scene">${c.scene.map(s=>`<li>${esc(s)}</li>`).join("")}</ul>`:""}
+  ${c.optionA?`<div class="opts2"><div><strong>Option A</strong><br>${esc(c.optionA)}</div><div><strong>Option B</strong><br>${esc(c.optionB)}</div></div>`:""}`;}
+function renderWriting(key){
+  const it=day().items[key],c=it.content,res=it.result,{def}=meta(key);
+  $("#pane").innerHTML=`${head(key)}${promptBlock(c)}
+  <textarea id="wt" spellcheck="false" placeholder="여기에 영어로 작성하세요. 실제 시험처럼 맞춤법 검사는 꺼져 있습니다." ${res?"readonly":""}>${esc(it.final||it.draft||"")}</textarea>
+  <div class="row" style="justify-content:space-between"><span class="wc" id="wc"></span>${res?"":`<div class="row"><button class="btn" id="sub">제출하고 채점받기</button>${regenHTML()}</div>`}</div>
+  <div id="gr">${res?gradeHTML(key,res,"W"):""}</div>`;
+  const ta=$("#wt");const upd=()=>$("#wc").textContent=`${wc(ta.value)} words · 목표 150~200`;upd();
+  if(res)return;
+  ta.oninput=()=>{it.draft=ta.value;upd();clearTimeout(ta._t);ta._t=setTimeout(saveData,600);};
+  $("#hdrRight").innerHTML=`<span class="timer" id="tm"></span>`;countdown(def.min*60,$("#tm"),()=>{$("#gr").innerHTML=`<div class="notice">시간이 끝났습니다. 실제 시험이라면 여기서 제출됩니다.</div>`;},key);
+  wireRegen(key);
+  $("#sub").onclick=()=>{const text=ta.value.trim();if(wc(text)<40){$("#gr").innerHTML=`<div class="err">40단어 이상 써야 채점할 수 있습니다.</div>`;return;}
+    const used=Math.round((Date.now()-it.startedAt)/60000);grade(key,text,` (${wc(text)} words, written in about ${used} minutes of the ${def.min}-minute limit)`);};
+}
+async function grade(key,answer,extra){
+  const it=day().items[key];const sb=$("#sub");if(sb)sb.disabled=true;
+  $("#gr").innerHTML=`<p class="hint"><span class="spin"></span>CELPIP 기준으로 채점하는 중입니다. 30초~1분 걸립니다.</p>`;
+  try{const r=await callClaude(gradePrompt(key,taskText(it.content),answer,extra),{model:cfg.gradeModel,max:8000});
+    r.level=Math.max(1,Math.min(12,Math.round(+r.overall||0)));r.at=Date.now();it.result=r;it.final=answer;stopTimer();addNotes(key,it);saveData();renderTop();if(cur===key)open(key,false);
+  }catch(e){if($("#gr"))$("#gr").innerHTML=`<div class="err">${esc(errMsg(e))}</div>`;if(sb)sb.disabled=false;}
+}
+function gradeHTML(key,r,k){
+  const s=r.scores||{};const dims=[["content","Content / Coherence"],["vocabulary","Vocabulary"],[k==="W"?"readability":"listenability",k==="W"?"Readability":"Listenability"],["task","Task Fulfillment"]];
+  const col=v=>v>=9?"var(--good)":v>=7?"var(--warn)":"var(--bad)";
+  return `<div class="score"><div><b style="color:${col(r.level)}">${r.level}</b><span>종합 레벨</span></div>${dims.map(([a,b])=>`<div><b style="color:${col(s[a])}">${esc(s[a]??"-")}</b><span>${b}</span></div>`).join("")}</div>
+  <div class="fb"><p>${esc(r.summary_ko)}</p>
+  ${r.strengths?.length?`<div><strong>잘한 점</strong><ul>${r.strengths.map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div>`:""}
+  ${r.improvements?.length?`<div><strong>고칠 점</strong><ul>${r.improvements.map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div>`:""}
+  ${r.to_reach_9?`<div class="notice">레벨 9 기준: ${esc(r.to_reach_9)}</div>`:""}</div>
+  ${wrongNoteForItem(key)}
+  ${r.useful_phrases?.length?`<div><strong class="kr">써먹을 표현</strong><div class="row" style="margin-top:6px">${r.useful_phrases.map(x=>`<span class="pill">${esc(x)}</span>`).join("")}</div></div>`:""}
+  ${r.model_answer?`<details><summary>레벨 10~11 모범 답안</summary><div class="model">${esc(r.model_answer)}</div></details>`:""}`;
+}
+
+/* ================= Speaking ================= */
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;let rec=null;
+function renderSpeaking(key){
+  const it=day().items[key],c=it.content,res=it.result,{def}=meta(key);
+  if(res){$("#pane").innerHTML=`${head(key)}${promptBlock(c)}<details><summary>내 답변 (받아쓰기)</summary><div class="model">${esc(it.final)}</div></details><div id="gr">${gradeHTML(key,res,"S")}</div>`;return;}
+  $("#pane").innerHTML=`${head(key)}${promptBlock(c)}
+  <div class="row"><button class="btn" id="go">준비 시작 (${def.prep}초)</button><span class="hint" id="phase">준비 시간이 끝나면 '지금 말하기'를 누르세요.</span></div>
+  <div class="live" id="live"><em>${SR?"말하기를 시작하면 받아쓴 내용이 여기에 나타납니다.":"이 브라우저는 음성 받아쓰기를 지원하지 않습니다 (Chrome, Edge 권장). 말한 내용을 아래 칸에 직접 입력하세요."}</em></div>
+  <textarea id="st" style="min-height:120px" placeholder="받아쓰기 결과를 고치거나 직접 입력하세요." ${SR?"hidden":""}></textarea>
+  <div class="row"><button class="btn" id="sub" disabled>채점받기</button>${regenHTML()}</div><div id="gr"></div>`;
+  wireRegen(key);
+  let finals="",partial="",tStart=0;const live=$("#live"),st=$("#st");
+  const showLive=()=>{live.innerHTML=esc(finals)+(partial?`<em> ${esc(partial)}</em>`:"");};
+  $("#go").onclick=()=>{const go=$("#go");go.textContent="지금 말하기";go.onclick=startTalk;
+    $("#hdrRight").innerHTML=`<span class="timer" id="tm"></span>`;let left=def.prep;const tm=$("#tm");
+    const tick=()=>{tm.textContent=`준비 0:${String(left).padStart(2,"0")}`;if(left--<=0){stopTimer();$("#phase").textContent="준비 끝. '지금 말하기'를 누르세요.";}};tick();timerId=setInterval(tick,1000);};
+  function startTalk(){
+    stopTimer();const go=$("#go");
+    if(SR){try{rec=new SR();rec.lang="en-CA";rec.continuous=true;rec.interimResults=true;
+      rec.onresult=e=>{partial="";for(let i=e.resultIndex;i<e.results.length;i++){const t=e.results[i][0].transcript;if(e.results[i].isFinal)finals+=(finals?" ":"")+t.trim();else partial+=t;}showLive();};
+      rec.onend=()=>{if(timerId&&rec)try{rec.start()}catch{}};
+      rec.onerror=e=>{if(e.error==="not-allowed"){$("#phase").textContent="마이크 권한이 거부되었습니다. 아래 칸에 직접 입력하세요.";st.hidden=false;rec=null;}};
+      rec.start();}catch{st.hidden=false;}}
+    else st.hidden=false;
+    $("#phase").textContent="말하는 중";tStart=Date.now();let left=def.talk;const tm=$("#tm");
+    const tick=()=>{tm.textContent=`말하기 ${Math.floor(left/60)}:${String(left%60).padStart(2,"0")}`;tm.classList.toggle("low",left<=10);if(left--<=0){stopTimer();finish();}};tick();timerId=setInterval(tick,1000);
+    go.textContent="일찍 끝내기";go.onclick=()=>{stopTimer();finish();};
+  }
+  function finish(){
+    const go=$("#go");go.disabled=true;go.textContent="끝";
+    const r=rec;rec=null;try{r?.stop()}catch{}
+    setTimeout(()=>{const secs=Math.round((Date.now()-tStart)/1000);
+      st.hidden=false;if(!st.value.trim())st.value=(finals+(partial?" "+partial:"")).trim();
+      $("#phase").textContent=`${secs}초 말함. 받아쓰기 오류만 고친 뒤 채점받으세요. 내용을 보태면 실전과 달라집니다.`;
+      const sb=$("#sub");sb.disabled=false;
+      sb.onclick=()=>{const text=st.value.trim();if(wc(text)<10){$("#gr").innerHTML=`<div class="err">채점할 내용이 너무 짧습니다.</div>`;return;}
+        grade(key,text,` (transcribed speech; spoke for about ${secs} of ${def.talk} seconds; ${wc(text)} words)`);};},700);
+  }
+}
+
+
+/* results recorded in v1.3 from official tests: read-only view */
+function renderOfficial(key){const it=day().items[key],r=it.result;
+  if(!r){delete day().items[key];saveData();renderStart(key);return;}
+  $("#pane").innerHTML=`${head(key)}<div class="score"><div><b>${r.correct}/${r.total}</b><span>정답</span></div><div><b>${r.level}</b><span>추정 레벨</span></div></div>${wrongNoteForItem(key)}`;}
+
+/* ================= Notes tab ================= */
+let noteFilter="open",noteSkill="all";
+function renderNotes(){
+  const all=Object.entries(data.notes).sort((a,b)=>b[0].localeCompare(a[0]));
+  const list=all.filter(([id,n])=>(noteFilter==="all"||!n.done)&&(noteSkill==="all"||n.skill===noteSkill));
+  $("#v-notes").innerHTML=`<div class="row" style="justify-content:space-between"><h2>오답노트</h2><div class="row">
+    <select id="nf"><option value="open" ${noteFilter==="open"?"selected":""}>복습 안 한 것</option><option value="all" ${noteFilter==="all"?"selected":""}>전체</option></select>
+    <select id="ns"><option value="all">모든 영역</option>${["L","R","W","S"].map(k=>`<option value="${k}" ${noteSkill===k?"selected":""}>${SKILL[k]}</option>`).join("")}</select></div></div>
+    ${list.length?list.map(([id,n])=>`<div class="pane note ${n.done?"done":""}"><div class="row" style="justify-content:space-between"><span class="meta">${n.date} · ${SKILL[n.skill]} · ${esc(n.part)}</span>
+      <div class="row"><label class="chk"><input type="checkbox" data-done="${esc(id)}" ${n.done?"checked":""}> 복습 완료</label><button class="btn ghost sm del" data-del="${esc(id)}">삭제</button></div></div>
+      ${n.type==="mc"?noteMC(n,id)+(n.more?"":`<div class="row"><button class="btn ghost sm" data-more="${esc(id)}">더 자세히 설명</button></div>`):noteFix(n)}</div>`).join("")
+      :`<p class="hint">${all.length?"이 조건에 맞는 오답이 없습니다.":"채점하면 틀린 문항과 교정 문장이 여기에 자동으로 모입니다."}</p>`}`;
+  $("#nf").onchange=e=>{noteFilter=e.target.value;renderNotes();};$("#ns").onchange=e=>{noteSkill=e.target.value;renderNotes();};
+  document.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>armDelete(b,()=>{delete data.notes[b.dataset.del];saveData();renderTop();renderNotes();}));
+  document.querySelectorAll("[data-done]").forEach(c=>c.onchange=()=>{data.notes[c.dataset.done].done=c.checked;saveData();renderTop();setTimeout(renderNotes,250);});
+  wireMore();
+}
+
+/* ================= History tab ================= */
+function renderHist(){
+  const ds=Object.keys(data.days).sort().reverse().slice(0,30);
+  const cell=(d,k)=>{const v=Object.entries(data.days[d].items||{}).filter(([kk,x])=>kk[0]===k&&x.result).map(([,x])=>x.result.level);return v.length?(v.reduce((a,b)=>a+b,0)/v.length).toFixed(1):"·";};
+  const usage=LS.get("cp-usage",{});
+  $("#v-hist").innerHTML=`<h2>기록 · ${esc(cfg.profile)}</h2>${allResults().length?`<div class="tblwrap"><table class="mono"><thead><tr><th>날짜</th><th>L</th><th>R</th><th>W</th><th>S</th></tr></thead><tbody>${ds.map(d=>`<tr><td>${d}</td>${["L","R","W","S"].map(k=>`<td>${cell(d,k)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`:`<p class="hint">채점이 끝난 연습이 날짜별로 쌓입니다.</p>`}
+  <h2>API 사용 추정 (이 기기)</h2><div class="tblwrap"><table class="mono"><thead><tr><th>월</th><th>추정 비용 (USD)</th></tr></thead><tbody>${Object.entries(usage).sort().reverse().map(([m,v])=>`<tr><td>${m}</td><td>$${v.toFixed(2)}</td></tr>`).join("")||`<tr><td colspan="2">아직 없음</td></tr>`}</tbody></table></div>
+  <p class="hint">정가 기준 추정치입니다. 정확한 금액은 Anthropic Console에서 확인하세요.</p>`;
+}
+
+/* ================= Settings tab ================= */
+function renderSettings(){
+  const vs=enVoices().sort((a,b)=>rankVoice(b)-rankVoice(a));const GL={f:"여",m:"남","":"?"};const vopt=(sel,g)=>`<option value="">자동</option>`+vs.filter(v=>!g||voiceGender(v)===g||!voiceGender(v)).map(v=>`<option value="${esc(v.name)}" ${v.name===sel?"selected":""}>${esc(v.name)} (${v.lang}, ${GL[voiceGender(v)]})</option>`).join("");
+  const mopt=sel=>MODELS.map(([v,l])=>`<option value="${v}" ${v===sel?"selected":""}>${l}</option>`).join("");
+  $("#v-set").innerHTML=`<div class="pane"><h3>API 키</h3>
+    <p class="hint">Anthropic Console에서 만든 키를 넣으세요. 이 기기의 브라우저에만 저장되고 Anthropic API로만 전송됩니다. 다른 기기에서는 그 기기에서 한 번 입력하면 됩니다.</p>
+    <div class="row"><input id="k" type="password" autocomplete="off" placeholder="sk-ant-..." value="${esc(cfg.key)}" style="flex:1;min-width:0"><button class="btn" id="ksave">저장</button><button class="btn ghost" id="ktest">연결 확인</button></div><div id="kmsg"></div></div>
+  <div class="pane"><h3>오늘의 세트</h3>
+    <label class="chk"><input type="checkbox" id="don" ${cfg.dailyOn?"checked":""}> 매일 기본 세트 보여주기</label>
+    <p class="hint">기본 세트를 끄면 "추가 연습"에서 고른 파트만 풉니다.</p></div>
+  <div class="pane"><h3>모델</h3><div class="grid2">
+    <label>문제 생성<select id="gm">${mopt(cfg.genModel)}</select></label><label>채점 (Writing, Speaking)<select id="rm">${mopt(cfg.gradeModel)}</select></label></div>
+    <p class="hint">채점은 Opus를 권장합니다. 레벨 판단이 가장 일관됩니다.</p></div>
+  <div class="pane"><h3>듣기 음성</h3>${vs.length?`<div class="grid2"><label>여성 화자<select id="va">${vopt(cfg.voiceA,"f")}</select></label><label>남성 화자<select id="vb">${vopt(cfg.voiceB,"m")}</select></label><label>뉴스·발표 (Narrator)<select id="vn">${vopt(cfg.voiceN)}</select></label><label>속도 <span id="rv">${cfg.rate}</span><input type="range" id="rate" min="0.8" max="1.2" step="0.05" value="${cfg.rate}"></label></div><div class="row"><button class="btn ghost" id="vtest">들어보기</button></div>`:`<p class="hint">이 브라우저에서 영어 음성을 찾지 못했습니다.</p>`}
+    <p class="hint">여성 화자와 남성 화자에는 서로 다른 음성을 고르세요. 같은 성별 화자가 둘이면 음 높이를 바꿔 구분합니다. 이름에 Natural, Premium, Enhanced가 붙은 음성이 가장 자연스럽습니다. 아이폰·아이패드는 설정 > 손쉬운 사용 > 읽기 및 말하기 > 음성 > 영어에서 내려받을 수 있습니다.</p></div>
+  <div class="pane"><h3>사용자</h3><p class="hint">사용자마다 기록과 오답노트가 따로 저장됩니다.</p>
+    <div class="row"><input id="np" placeholder="새 사용자 이름"><button class="btn ghost" id="addp">추가</button></div>
+    ${cfg.profiles.length>1?`<div class="row">${cfg.profiles.map(p=>`<span class="pill">${esc(p)}</span>${p===cfg.profile?"":`<button class="btn ghost sm del" data-delp="${esc(p)}">삭제</button>`}`).join(" ")}</div><p class="hint">사용자를 삭제하면 그 사람의 기록과 오답노트도 함께 지워집니다. 지금 선택된 사용자는 삭제할 수 없습니다.</p>`:""}</div>
+  <div class="pane"><h3>백업</h3><p class="hint">기록은 이 기기에만 저장됩니다. 기기를 바꾸거나 브라우저 데이터를 지우기 전에 백업하세요.</p>
+    <div class="row"><button class="btn ghost" id="exp">${esc(cfg.profile)} 기록 내보내기</button><label class="btn ghost" style="display:inline-block">가져오기<input type="file" id="imp" accept=".json" hidden></label></div><div id="bmsg"></div></div>`;
+  $("#ksave").onclick=()=>{cfg.key=$("#k").value.trim();saveCfg();$("#kmsg").innerHTML=`<p class="hint">저장했습니다.</p>`;};
+  $("#ktest").onclick=async()=>{cfg.key=$("#k").value.trim();saveCfg();$("#kmsg").innerHTML=`<p class="hint"><span class="spin"></span>확인 중</p>`;
+    try{await callText("Reply with OK.","claude-haiku-5-5");$("#kmsg").innerHTML=`<p class="hint" style="color:var(--good)">연결됐습니다.</p>`;}catch(e){$("#kmsg").innerHTML=`<div class="err">${esc(errMsg(e))}</div>`;}};
+  $("#don").onchange=e=>{cfg.dailyOn=e.target.checked;saveCfg();cur=null;renderTop();};
+  $("#gm").onchange=e=>{cfg.genModel=e.target.value;saveCfg();};$("#rm").onchange=e=>{cfg.gradeModel=e.target.value;saveCfg();};
+  if(vs.length){["va","vb","vn"].forEach((id,i)=>$("#"+id).onchange=e=>{cfg[["voiceA","voiceB","voiceN"][i]]=e.target.value;saveCfg();});
+    $("#rate").oninput=e=>{cfg.rate=+e.target.value;$("#rv").textContent=cfg.rate;saveCfg();};
+    $("#vtest").onclick=()=>playScript([{speaker:"Anna",gender:"f",text:"Hi Mark, did you get a chance to look at the community centre schedule?"},{speaker:"Mark",gender:"m",text:"I did. The Tuesday class is full, so we might have to go on Thursday instead."},{speaker:"Narrator",text:"City council approved a new bike lane on 17th Avenue last night."}],()=>{});}
+  $("#addp").onclick=()=>{const n=$("#np").value.trim();if(!n||cfg.profiles.includes(n))return;cfg.profiles.push(n);cfg.profile=n;saveCfg();switchProfile(n);};
+  document.querySelectorAll("[data-delp]").forEach(b=>b.onclick=()=>armDelete(b,()=>{const p=b.dataset.delp;cfg.profiles=cfg.profiles.filter(x=>x!==p);saveCfg();try{localStorage.removeItem("cp-data-"+p)}catch{}renderTop();renderSettings();}));
+  $("#exp").onclick=()=>{const blob=new Blob([JSON.stringify({profile:cfg.profile,data},null,1)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`celpip-${cfg.profile}-${TODAY}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000);};
+  $("#imp").onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const j=JSON.parse(await f.text());if(!j.data?.days)throw 0;
+    Object.assign(data.days,j.data.days);Object.assign(data.notes,j.data.notes||{});saveData();renderTop();$("#bmsg").innerHTML=`<p class="hint">${esc(cfg.profile)}에 가져왔습니다.</p>`;}catch{$("#bmsg").innerHTML=`<div class="err">이 앱의 백업 파일이 아닙니다.</div>`;}};
+}
+function switchProfile(p){cfg.profile=p;saveCfg();data=LS.get(dataKey(),{days:{},notes:{}});cur=null;show(tab);}
+
+/* ================= extra practice ================= */
+function fillExtra(){
+  const opts=[];[["L",L],["R",R],["W",W],["S",S]].forEach(([k,o])=>Object.entries(o).forEach(([p,d])=>opts.push(`<option value="${k}${p}">${SKILL[k]} ${p}. ${esc(d.name)}</option>`)));
+  $("#extraSel").innerHTML=opts.join("");
+  $("#extraBtn").onclick=()=>{const base=$("#extraSel").value;let n=1;while(day().items[`${base}-x${n}`])n++;const key=`${base}-x${n}`;day().items[key]={answers:{}};saveData();open(key);};
+}
+
+/* ================= boot ================= */
+document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>show(b.dataset.tab));
+$("#who").onchange=e=>switchProfile(e.target.value);
+try{speechSynthesis.onvoiceschanged=()=>{if(tab==="set")renderSettings();};speechSynthesis.getVoices();}catch{}
+$("#pane").addEventListener("click",e=>{const b=e.target.closest("#delItem");if(b&&cur)armDelete(b,()=>deleteItem(cur));});
+fillExtra();show(cfg.key?"today":"set");
+})();
+</script>
+</body>
+</html>
