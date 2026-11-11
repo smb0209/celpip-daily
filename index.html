@@ -199,7 +199,7 @@ html,body{overflow-x:hidden}
 <body>
 <header class="top"><div class="wrap">
   <div class="toprow">
-    <h1>CELPIP Daily<span class="tgt">target 9·9·9·9</span><span class="meta" style="margin-left:8px">v1.11</span></h1>
+    <h1>CELPIP Daily<span class="tgt">target 9·9·9·9</span><span class="meta" style="margin-left:8px">v1.12</span></h1>
     <div class="row"><select id="who" aria-label="사용자"></select><span class="meta" id="meta"></span></div>
   </div>
   <div class="skills" id="skills"></div>
@@ -461,8 +461,8 @@ function mcResult(key,r){return `<div class="score"><div><b>${r.correct}/${r.tot
 function enVoices(){try{return speechSynthesis.getVoices().filter(v=>/^en/i.test(v.lang))}catch{return []}}
 function rankVoice(v){return (/premium/i.test(v.name)?5:0)+(/natural|neural|online|enhanced/i.test(v.name)?4:0)+(/google/i.test(v.name)?2:0)+(/en-CA|en-US/i.test(v.lang)?1:0);}
 /* guess a voice's gender from its name (Apple, Google, Microsoft voices) */
-const F_NAMES=/\b(female|woman|samantha|ava|allison|susan|zoe|zoey|victoria|karen|moira|tessa|fiona|veena|serena|kate|nicky|joelle|noelle|catherine|martha|kathy|princess|shelley|sandy|flo|grandma|jenny|aria|michelle|sonia|libby|natasha|clara|emma|ana|zira|hazel|heera|linda|amy|joanna|kendra|kimberly|salli|ivy|ruth|olivia|nicole|sara|sarah|jane|nancy|elizabeth|ashley|cora|monica|aditi|isha)\b/i;
-const M_NAMES=/\b(male|man|alex|daniel|tom|fred|aaron|arthur|evan|nathan|rishi|oliver|gordon|lee|reed|rocko|eddy|ralph|albert|junior|grandpa|guy|ryan|christopher|eric|roger|steffan|brian|andrew|liam|william|david|mark|george|thomas|matthew|joey|justin|kevin|russell|james|jason|tony|davis|brandon|jacob|connor|mitchell|prabhat|ravi)\b/i;
+const F_NAMES=/\b(female|woman|samantha|ava|allison|susan|zoe|zoey|victoria|karen|moira|tessa|fiona|veena|serena|kate|nicky|joelle|noelle|catherine|martha|kathy|princess|shelley|sandy|flo|grandma|jenny|aria|michelle|sonia|libby|natasha|clara|emma|ana|zira|hazel|heera|linda|amy|joanna|kendra|kimberly|salli|ivy|ruth|olivia|nicole|sara|sarah|jane|nancy|elizabeth|ashley|cora|monica|aditi|isha|matilda|gabriela|helena)\b/i;
+const M_NAMES=/\b(male|man|alex|jamie|daniel|tom|fred|aaron|arthur|evan|nathan|rishi|oliver|gordon|lee|reed|rocko|eddy|ralph|albert|junior|grandpa|guy|ryan|christopher|eric|roger|steffan|brian|andrew|liam|william|david|mark|george|thomas|matthew|joey|justin|kevin|russell|james|jason|tony|davis|brandon|jacob|connor|mitchell|prabhat|ravi)\b/i;
 function voiceGender(v){const n=v.name.replace(/female/i," female ");if(/\bfemale\b/i.test(n))return "f";if(F_NAMES.test(n))return "f";if(M_NAMES.test(n))return "m";return "";}
 function pickVoices(){const vs=enVoices().sort((a,b)=>rankVoice(b)-rankVoice(a));const by=n=>vs.find(v=>v.name===n);
   let F=vs.filter(v=>voiceGender(v)==="f"),M=vs.filter(v=>voiceGender(v)==="m");
